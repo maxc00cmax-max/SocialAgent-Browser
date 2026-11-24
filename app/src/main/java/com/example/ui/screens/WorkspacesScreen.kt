@@ -4,8 +4,6 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -13,11 +11,13 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -28,7 +28,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -44,13 +46,19 @@ import com.example.ui.theme.*
 fun WorkspacesScreen(
     viewModel: MainViewModel,
     onNavigateToBrowserTab: (String) -> Unit,
+    onOpenCommandHub: () -> Unit = {},
+    onOpenOpenGraphScraper: (String) -> Unit = {},
+    onOpenAppBridge: () -> Unit = {},
+    onViewAllRecentPages: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val c = AppTheme.colors
     val isRunning by viewModel.isSystemRunning.collectAsState()
     val statusMessage by viewModel.systemStatusMessage.collectAsState()
     val tabs by viewModel.browserManager.tabs.collectAsState()
     val promptInputs by viewModel.tabPromptInputs.collectAsState()
     val recentPages by viewModel.allRecentPages.collectAsState()
+    val totalTokens by viewModel.totalTokens.collectAsState()
     val context = LocalContext.current
 
     var showNewTabDialog by remember { mutableStateOf(false) }
@@ -71,27 +79,34 @@ fun WorkspacesScreen(
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
+            .background(c.background)
             .padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 96.dp),
+        contentPadding = PaddingValues(top = 14.dp, bottom = 96.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // 1. Master System Control Card (Linear / Apple style)
+        // 1. Hero Automation Control Card (Light-first airy card with soft gradient)
         item {
-            Card(
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = CardSurface),
+            Surface(
+                shape = RoundedCornerShape(18.dp),
+                color = Color.Transparent,
                 border = BorderStroke(
                     1.dp,
-                    if (isRunning) EmeraldGreen.copy(alpha = 0.4f) else CardBorder
+                    if (isRunning) c.success.copy(alpha = 0.45f) else c.border
                 ),
+                shadowElevation = if (c.isDark) 0.dp else 2.dp,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .background(
+                        brush = Brush.linearGradient(listOf(c.heroStart, c.heroEnd)),
+                        shape = RoundedCornerShape(18.dp)
+                    )
                     .testTag("system_control_card")
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp)
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -102,46 +117,48 @@ fun WorkspacesScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Box(
                                     modifier = Modifier
-                                        .size(8.dp)
+                                        .size(9.dp)
                                         .clip(CircleShape)
                                         .background(
-                                            (if (isRunning) EmeraldGreen else AlertRed)
+                                            (if (isRunning) c.success else c.textMuted)
                                                 .copy(alpha = if (isRunning) pulseAlpha else 1f)
                                         )
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = if (isRunning) "نظام الأتمتة: نشط" else "نظام الأتمتة: متوقف",
+                                    text = if (isRunning) "محرك الأتمتة نشط" else "جاهز للعمل",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (isRunning) EmeraldGreen else TextSecondary
+                                    color = if (isRunning) c.success else c.textPrimary
                                 )
                             }
-                            Spacer(modifier = Modifier.height(3.dp))
+                            Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "تحليل الصفحات وتنفيذ المهام التلقائية لكل نافذة",
+                                text = "تحليل الصفحات وتنفيذ الأوامر الذكية على النوافذ",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = TextMuted
+                                color = c.textSecondary
                             )
                         }
+
+                        Spacer(modifier = Modifier.width(8.dp))
 
                         Button(
                             onClick = { viewModel.toggleSystemRunning() },
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isRunning) AlertRedDark else EmeraldDark,
+                                containerColor = if (isRunning) c.error else c.accent,
                                 contentColor = Color.White
                             ),
-                            shape = RoundedCornerShape(8.dp),
+                            shape = RoundedCornerShape(12.dp),
                             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
                             modifier = Modifier
-                                .height(40.dp)
-                                .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+                                .height(42.dp)
+                                .minimumInteractiveComponentSize()
                                 .testTag("toggle_system_button")
                         ) {
                             Icon(
                                 imageVector = if (isRunning) Icons.Filled.Stop else Icons.Filled.PlayArrow,
                                 contentDescription = null,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
@@ -151,12 +168,36 @@ fun WorkspacesScreen(
                         }
                     }
 
+                    // Live Overview Pills
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        WorkspaceStatChip(
+                            label = "النوافذ",
+                            value = "${tabs.size}",
+                            tint = c.accent,
+                            modifier = Modifier.weight(1f)
+                        )
+                        WorkspaceStatChip(
+                            label = "أوفلاين",
+                            value = "${recentPages.size}",
+                            tint = c.success,
+                            modifier = Modifier.weight(1f)
+                        )
+                        WorkspaceStatChip(
+                            label = "التوكنز",
+                            value = "${totalTokens ?: 0}",
+                            tint = c.warning,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
                     if (statusMessage.isNotBlank()) {
-                        Spacer(modifier = Modifier.height(10.dp))
                         Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = CardSurfaceElevated,
-                            border = BorderStroke(1.dp, CardBorderSubtle),
+                            shape = RoundedCornerShape(10.dp),
+                            color = c.surface.copy(alpha = 0.85f),
+                            border = BorderStroke(1.dp, c.borderSubtle),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
@@ -166,14 +207,14 @@ fun WorkspacesScreen(
                                 Icon(
                                     imageVector = Icons.Filled.Info,
                                     contentDescription = null,
-                                    tint = if (isRunning) EmeraldGreen else TextMuted,
-                                    modifier = Modifier.size(14.dp)
+                                    tint = if (isRunning) c.success else c.accent,
+                                    modifier = Modifier.size(15.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = statusMessage,
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = TextSecondary,
+                                    color = c.textSecondary,
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -181,6 +222,45 @@ fun WorkspacesScreen(
                         }
                     }
                 }
+            }
+        }
+
+        // 1.2 Quick Shortcuts Bar (Easy 1-tap access to key workflows)
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                QuickActionPill(
+                    label = "نافذة جديدة",
+                    icon = Icons.Filled.Add,
+                    tint = c.accent,
+                    onClick = { showNewTabDialog = true },
+                    testTag = "quick_add_tab_pill"
+                )
+                QuickActionPill(
+                    label = "مستخرج OpenGraph",
+                    icon = Icons.Filled.TravelExplore,
+                    tint = c.accentSecondary,
+                    onClick = { onOpenOpenGraphScraper("") },
+                    testTag = "quick_opengraph_pill"
+                )
+                QuickActionPill(
+                    label = "مركز الأوامر",
+                    icon = Icons.Filled.Tune,
+                    tint = ElectricViolet,
+                    onClick = onOpenCommandHub,
+                    testTag = "quick_command_hub_pill"
+                )
+                QuickActionPill(
+                    label = "جسر التطبيقات",
+                    icon = Icons.Filled.SyncAlt,
+                    tint = c.success,
+                    onClick = onOpenAppBridge,
+                    testTag = "quick_bridge_pill"
+                )
             }
         }
 
@@ -195,99 +275,121 @@ fun WorkspacesScreen(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "صفحات التواصل المزارة أوفلاين",
+                                text = "المزارة مؤخراً (أوفلاين)",
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = TextPrimary
+                                color = c.textPrimary
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Surface(
-                                shape = RoundedCornerShape(4.dp),
-                                color = AccentIndigo.copy(alpha = 0.2f),
-                                border = BorderStroke(1.dp, CardBorderSubtle)
+                                shape = RoundedCornerShape(6.dp),
+                                color = c.accentSoft
                             ) {
                                 Text(
                                     text = "${recentPages.size}",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                    color = NeonCyan,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = c.accent,
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                                 )
                             }
                         }
-                        Text(
-                            text = "Room DB 💾",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = EmeraldGreen
-                        )
+
+                        TextButton(
+                            onClick = onViewAllRecentPages,
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "عرض الكل",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = c.accent
+                            )
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Icon(
+                                imageVector = Icons.Filled.ChevronLeft,
+                                contentDescription = null,
+                                tint = c.accent,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
-                    androidx.compose.foundation.lazy.LazyRow(
+                    LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         items(recentPages.take(8), key = { it.id }) { page ->
                             val platformColor = when (page.platform.uppercase()) {
-                                "X_TWITTER" -> NeonCyan
+                                "X_TWITTER" -> c.accentSecondary
                                 "LINKEDIN" -> InfoBlue
                                 "INSTAGRAM" -> ElectricViolet
-                                "REDDIT" -> AccentAmber
-                                else -> TextSecondary
+                                "REDDIT" -> c.warning
+                                else -> c.textSecondary
                             }
                             Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = CardSurface,
-                                border = BorderStroke(1.dp, if (page.isPinned) AccentAmber.copy(alpha = 0.4f) else CardBorderSubtle),
+                                shape = RoundedCornerShape(14.dp),
+                                color = c.card,
+                                shadowElevation = if (c.isDark) 0.dp else 1.dp,
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (page.isPinned) c.warning.copy(alpha = 0.5f) else c.borderSubtle
+                                ),
                                 modifier = Modifier
                                     .width(220.dp)
+                                    .clip(RoundedCornerShape(14.dp))
                                     .clickable {
                                         viewModel.openRecentPageInBrowser(page.url, page.title)
                                     }
                             ) {
-                                Column(modifier = Modifier.padding(10.dp)) {
+                                Column(modifier = Modifier.padding(12.dp)) {
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Surface(
-                                            shape = RoundedCornerShape(4.dp),
-                                            color = platformColor.copy(alpha = 0.15f)
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = platformColor.copy(alpha = 0.12f)
                                         ) {
                                             Text(
                                                 text = page.platform.replace("_", " "),
                                                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
                                                 fontWeight = FontWeight.Bold,
                                                 color = platformColor,
-                                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                             )
                                         }
 
                                         if (page.isPinned) {
                                             Icon(
                                                 imageVector = Icons.Default.PushPin,
-                                                contentDescription = null,
-                                                tint = AccentAmber,
-                                                modifier = Modifier.size(12.dp)
+                                                contentDescription = "مثبتة",
+                                                tint = c.warning,
+                                                modifier = Modifier.size(13.dp)
                                             )
                                         }
                                     }
 
-                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Spacer(modifier = Modifier.height(8.dp))
 
                                     Text(
                                         text = page.title,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = TextPrimary,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = c.textPrimary,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
 
                                     Text(
                                         text = page.url,
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                        color = TextMuted,
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontFamily = JetBrainsMonoFontFamily,
+                                            fontSize = 10.sp
+                                        ),
+                                        color = c.textMuted,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
@@ -299,7 +401,7 @@ fun WorkspacesScreen(
             }
         }
 
-        // 2. Quick Actions Toolbar
+        // 2. Active Browser Workspaces Header
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -310,78 +412,79 @@ fun WorkspacesScreen(
                     text = "نوافذ المتصفح النشطة (${tabs.size})",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = TextPrimary
+                    color = c.textPrimary
                 )
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilledTonalButton(
                         onClick = { showNewTabDialog = true },
-                        shape = RoundedCornerShape(8.dp),
+                        shape = RoundedCornerShape(10.dp),
                         colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = CardSurfaceElevated,
-                            contentColor = TextPrimary
+                            containerColor = c.card,
+                            contentColor = c.textPrimary
                         ),
-                        border = BorderStroke(1.dp, CardBorder),
+                        border = BorderStroke(1.dp, c.border),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                         modifier = Modifier
-                            .height(34.dp)
-                            .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+                            .height(36.dp)
+                            .minimumInteractiveComponentSize()
                             .testTag("add_tab_button")
                     ) {
-                        Icon(imageVector = Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Icon(imageVector = Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(15.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("إضافة نافذة", style = MaterialTheme.typography.labelSmall)
+                        Text("إضافة", style = MaterialTheme.typography.labelMedium)
                     }
 
                     FilledTonalButton(
                         onClick = { viewModel.startAutomatedPageAnalysis() },
-                        shape = RoundedCornerShape(8.dp),
+                        shape = RoundedCornerShape(10.dp),
                         colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = AccentIndigo.copy(alpha = 0.15f),
-                            contentColor = NeonCyan
+                            containerColor = c.accentSoft,
+                            contentColor = c.accent
                         ),
-                        border = BorderStroke(1.dp, AccentIndigo.copy(alpha = 0.3f)),
+                        border = BorderStroke(1.dp, c.accent.copy(alpha = 0.25f)),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                         modifier = Modifier
-                            .height(34.dp)
-                            .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+                            .height(36.dp)
+                            .minimumInteractiveComponentSize()
                             .testTag("analyze_all_tabs_button")
                     ) {
-                        Icon(imageVector = Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Icon(imageVector = Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.size(15.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("تحليل الكل", style = MaterialTheme.typography.labelSmall)
+                        Text("تحليل الكل", style = MaterialTheme.typography.labelMedium)
                     }
                 }
             }
         }
 
-        // 3. Tab Cards or Designed Empty State
+        // 3. Tab Cards or Friendly Empty State
         if (tabs.isEmpty()) {
             item {
-                Card(
-                    shape = RoundedCornerShape(14.dp),
-                    colors = CardDefaults.cardColors(containerColor = CardSurface),
-                    border = BorderStroke(1.dp, CardBorder),
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = c.card,
+                    border = BorderStroke(1.dp, c.borderSubtle),
+                    shadowElevation = if (c.isDark) 0.dp else 1.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 40.dp, horizontal = 20.dp),
+                            .padding(vertical = 38.dp, horizontal = 20.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
                         Surface(
                             shape = CircleShape,
-                            color = CardSurfaceElevated,
-                            modifier = Modifier.size(48.dp)
+                            color = c.accentSoft,
+                            modifier = Modifier.size(54.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
                                     imageVector = Icons.Outlined.Language,
                                     contentDescription = null,
-                                    tint = TextMuted,
-                                    modifier = Modifier.size(24.dp)
+                                    tint = c.accent,
+                                    modifier = Modifier.size(26.dp)
                                 )
                             }
                         }
@@ -389,23 +492,24 @@ fun WorkspacesScreen(
                         Text(
                             text = "لا توجد نوافذ مفتوحة حالياً",
                             style = MaterialTheme.typography.titleMedium,
-                            color = TextPrimary
+                            fontWeight = FontWeight.Bold,
+                            color = c.textPrimary
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "أضف نافذة جديدة لبدء التصفح والأتمتة واستخراج البيانات",
                             style = MaterialTheme.typography.bodySmall,
-                            color = TextMuted
+                            color = c.textMuted
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         Button(
                             onClick = { showNewTabDialog = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = AccentIndigo),
-                            shape = RoundedCornerShape(8.dp)
+                            colors = ButtonDefaults.buttonColors(containerColor = c.accent, contentColor = Color.White),
+                            shape = RoundedCornerShape(10.dp)
                         ) {
                             Icon(imageVector = Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("إضافة نافذة جديدة", style = MaterialTheme.typography.labelMedium)
+                            Text("إضافة نافذة جديدة", style = MaterialTheme.typography.labelLarge)
                         }
                     }
                 }
@@ -447,17 +551,17 @@ fun WorkspacesScreen(
     if (showNewTabDialog) {
         AlertDialog(
             onDismissRequest = { showNewTabDialog = false },
-            containerColor = CardSurfaceElevated,
-            shape = RoundedCornerShape(16.dp),
+            containerColor = c.card,
+            shape = RoundedCornerShape(18.dp),
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(imageVector = Icons.Filled.AddLink, contentDescription = null, tint = NeonCyan, modifier = Modifier.size(20.dp))
+                    Icon(imageVector = Icons.Filled.AddLink, contentDescription = null, tint = c.accent, modifier = Modifier.size(22.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "إضافة نافذة متصفح",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = TextPrimary
+                        color = c.textPrimary
                     )
                 }
             },
@@ -469,12 +573,14 @@ fun WorkspacesScreen(
                         label = { Text("اسم النافذة") },
                         placeholder = { Text("مثال: تويتر، إنستغرام، لينكد إن...") },
                         singleLine = true,
-                        shape = RoundedCornerShape(10.dp),
+                        shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = AccentIndigo,
-                            unfocusedBorderColor = CardBorder,
-                            focusedContainerColor = CardSurface,
-                            unfocusedContainerColor = CardSurface
+                            focusedBorderColor = c.accent,
+                            unfocusedBorderColor = c.border,
+                            focusedContainerColor = c.cardElevated,
+                            unfocusedContainerColor = c.cardElevated,
+                            focusedTextColor = c.textPrimary,
+                            unfocusedTextColor = c.textPrimary
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -484,12 +590,14 @@ fun WorkspacesScreen(
                         label = { Text("رابط الموقع (URL)") },
                         placeholder = { Text("https://...") },
                         singleLine = true,
-                        shape = RoundedCornerShape(10.dp),
+                        shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = AccentIndigo,
-                            unfocusedBorderColor = CardBorder,
-                            focusedContainerColor = CardSurface,
-                            unfocusedContainerColor = CardSurface
+                            focusedBorderColor = c.accent,
+                            unfocusedBorderColor = c.border,
+                            focusedContainerColor = c.cardElevated,
+                            unfocusedContainerColor = c.cardElevated,
+                            focusedTextColor = c.textPrimary,
+                            unfocusedTextColor = c.textPrimary
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -505,23 +613,97 @@ fun WorkspacesScreen(
                         newTabUrl = ""
                         showNewTabDialog = false
                     },
-                    shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentIndigo)
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = c.accent, contentColor = Color.White)
                 ) {
                     Text("إضافة")
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showNewTabDialog = false }) {
-                    Text("إلغاء", color = TextSecondary)
+                    Text("إلغاء", color = c.textSecondary)
                 }
             }
         )
     }
 }
 
+@Composable
+private fun WorkspaceStatChip(
+    label: String,
+    value: String,
+    tint: Color,
+    modifier: Modifier = Modifier
+) {
+    val c = AppTheme.colors
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = c.surface.copy(alpha = 0.88f),
+        border = BorderStroke(1.dp, c.borderSubtle),
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier.padding(vertical = 8.dp, horizontal = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = tint
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = c.textSecondary
+            )
+        }
+    }
+}
+
+@Composable
+private fun QuickActionPill(
+    label: String,
+    icon: ImageVector,
+    tint: Color,
+    onClick: () -> Unit,
+    testTag: String
+) {
+    val c = AppTheme.colors
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = c.card,
+        border = BorderStroke(1.dp, c.borderSubtle),
+        shadowElevation = if (c.isDark) 0.dp else 1.dp,
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .minimumInteractiveComponentSize()
+            .testTag(testTag)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = tint,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = c.textPrimary
+            )
+        }
+    }
+}
+
 /**
- * Individual Tab Card with high-polish status badges and inline execution
+ * Individual Tab Card with crisp Light-first spacing, inline quick prompts, and actions
  */
 @Composable
 fun TabWorkspaceCard(
@@ -534,11 +716,13 @@ fun TabWorkspaceCard(
     onCloseTab: () -> Unit,
     onCopyResult: (String) -> Unit
 ) {
+    val c = AppTheme.colors
     val statusColor = when (tab.analysisStatus) {
-        TabAnalysisStatus.COMPLETED -> EmeraldGreen
-        TabAnalysisStatus.ANALYZING, TabAnalysisStatus.EXECUTING -> AccentAmber
-        TabAnalysisStatus.ERROR -> AlertRed
-        else -> TextMuted
+        TabAnalysisStatus.COMPLETED -> c.success
+        TabAnalysisStatus.ANALYZING, TabAnalysisStatus.EXECUTING -> c.warning
+        TabAnalysisStatus.ERROR -> c.error
+        TabAnalysisStatus.READY_FOR_PROMPT -> c.accent
+        else -> c.textMuted
     }
 
     val statusText = when (tab.analysisStatus) {
@@ -550,16 +734,17 @@ fun TabWorkspaceCard(
         TabAnalysisStatus.PENDING -> "في الانتظار"
     }
 
-    Card(
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = CardSurface),
-        border = BorderStroke(1.dp, CardBorder),
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = c.card,
+        border = BorderStroke(1.dp, c.borderSubtle),
+        shadowElevation = if (c.isDark) 0.dp else 1.dp,
         modifier = Modifier
             .fillMaxWidth()
             .testTag("tab_card_${tab.id}")
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
-            // Header: Title, URL, Status Badge, Close Button
+            // Header: Icon, Title, URL, Status Badge, Close Button
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -570,16 +755,15 @@ fun TabWorkspaceCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = CardSurfaceElevated,
-                        border = BorderStroke(1.dp, CardBorderSubtle),
-                        modifier = Modifier.size(34.dp)
+                        shape = RoundedCornerShape(10.dp),
+                        color = c.accentSoft,
+                        modifier = Modifier.size(36.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = Icons.Filled.Language,
                                 contentDescription = null,
-                                tint = NeonCyan,
+                                tint = c.accent,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -590,14 +774,14 @@ fun TabWorkspaceCard(
                             text = tab.title.ifBlank { "نافذة تصفح" },
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = TextPrimary,
+                            color = c.textPrimary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
                             text = tab.url,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextMuted,
+                            style = MaterialTheme.typography.labelSmall.copy(fontFamily = JetBrainsMonoFontFamily),
+                            color = c.textMuted,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -605,17 +789,16 @@ fun TabWorkspaceCard(
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Status Badge
                     Surface(
                         shape = RoundedCornerShape(6.dp),
-                        color = statusColor.copy(alpha = 0.15f)
+                        color = statusColor.copy(alpha = 0.12f)
                     ) {
                         Text(
                             text = statusText,
                             style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold,
+                            fontWeight = FontWeight.Bold,
                             color = statusColor,
-                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                         )
                     }
 
@@ -623,12 +806,12 @@ fun TabWorkspaceCard(
 
                     IconButton(
                         onClick = onCloseTab,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(36.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Close,
                             contentDescription = "إغلاق النافذة",
-                            tint = TextMuted,
+                            tint = c.textMuted,
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -645,35 +828,64 @@ fun TabWorkspaceCard(
                     Text(
                         text = "اكتب مهمة الذكاء الاصطناعي لهذه الصفحة...",
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextMuted
+                        color = c.textMuted
                     )
                 },
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("tab_prompt_input_${tab.id}"),
-                shape = RoundedCornerShape(10.dp),
+                shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = AccentIndigo,
-                    unfocusedBorderColor = CardBorder,
-                    focusedContainerColor = CardSurfaceElevated,
-                    unfocusedContainerColor = CardSurfaceElevated
+                    focusedBorderColor = c.accent,
+                    unfocusedBorderColor = c.border,
+                    focusedContainerColor = c.cardElevated,
+                    unfocusedContainerColor = c.cardElevated,
+                    focusedTextColor = c.textPrimary,
+                    unfocusedTextColor = c.textPrimary
                 ),
                 trailingIcon = {
                     IconButton(
                         onClick = onExecutePrompt,
                         enabled = promptText.isNotBlank() && !tab.isExecutingPrompt,
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.minimumInteractiveComponentSize()
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Send,
                             contentDescription = "تنفيذ",
-                            tint = if (promptText.isNotBlank()) NeonCyan else TextMuted,
-                            modifier = Modifier.size(16.dp)
+                            tint = if (promptText.isNotBlank()) c.accent else c.textMuted,
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 },
                 singleLine = true
             )
+
+            // 1-Tap Prompt Presets
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                listOf("تلخيص الصفحة", "استخراج المنشورات", "تحليل التفاعل").forEach { preset ->
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = c.cardElevated,
+                        border = BorderStroke(1.dp, c.borderSubtle),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { onPromptChange(preset) }
+                    ) {
+                        Text(
+                            text = preset,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = c.textSecondary,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+            }
 
             // Analysis / Execution Result Box
             val resultText = when {
@@ -685,9 +897,9 @@ fun TabWorkspaceCard(
             if (resultText.isNotBlank()) {
                 Spacer(modifier = Modifier.height(10.dp))
                 Surface(
-                    shape = RoundedCornerShape(10.dp),
-                    color = CardSurfaceElevated,
-                    border = BorderStroke(1.dp, CardBorderSubtle),
+                    shape = RoundedCornerShape(12.dp),
+                    color = c.cardElevated,
+                    border = BorderStroke(1.dp, c.borderSubtle),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(10.dp)) {
@@ -700,17 +912,17 @@ fun TabWorkspaceCard(
                                 text = "مخرجات العملية:",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = NeonCyan
+                                color = c.accent
                             )
                             IconButton(
                                 onClick = { onCopyResult(resultText) },
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(28.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Outlined.ContentCopy,
                                     contentDescription = "نسخ",
-                                    tint = TextSecondary,
-                                    modifier = Modifier.size(13.dp)
+                                    tint = c.textSecondary,
+                                    modifier = Modifier.size(14.dp)
                                 )
                             }
                         }
@@ -718,7 +930,7 @@ fun TabWorkspaceCard(
                         Text(
                             text = resultText,
                             style = MaterialTheme.typography.bodySmall,
-                            color = TextPrimary,
+                            color = c.textPrimary,
                             maxLines = 4,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -726,7 +938,7 @@ fun TabWorkspaceCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // Footer Actions: Open in Live Browser & Analyze Now
             Row(
@@ -735,34 +947,39 @@ fun TabWorkspaceCard(
             ) {
                 OutlinedButton(
                     onClick = onOpenInBrowser,
-                    shape = RoundedCornerShape(8.dp),
-                    border = BorderStroke(1.dp, CardBorder),
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, c.border),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                     modifier = Modifier
                         .weight(1f)
-                        .height(36.dp)
-                        .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+                        .height(40.dp)
+                        .minimumInteractiveComponentSize()
                         .testTag("open_in_browser_button_${tab.id}")
                 ) {
-                    Icon(imageVector = Icons.Filled.OpenInBrowser, contentDescription = null, modifier = Modifier.size(14.dp), tint = TextSecondary)
+                    Icon(
+                        imageVector = Icons.Filled.OpenInBrowser,
+                        contentDescription = null,
+                        modifier = Modifier.size(15.dp),
+                        tint = c.textSecondary
+                    )
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("عرض في المتصفح", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                    Text("فتح في المتصفح", style = MaterialTheme.typography.labelMedium, color = c.textPrimary)
                 }
 
                 Button(
                     onClick = onAnalyzeTab,
-                    shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentIndigo),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = c.accent, contentColor = Color.White),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                     modifier = Modifier
                         .weight(1f)
-                        .height(36.dp)
-                        .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+                        .height(40.dp)
+                        .minimumInteractiveComponentSize()
                         .testTag("analyze_tab_button_${tab.id}")
                 ) {
-                    Icon(imageVector = Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Icon(imageVector = Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.size(15.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("تحليل فوري", style = MaterialTheme.typography.labelSmall)
+                    Text("تحليل فوري", style = MaterialTheme.typography.labelMedium)
                 }
             }
         }

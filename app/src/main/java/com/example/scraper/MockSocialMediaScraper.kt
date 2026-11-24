@@ -5,33 +5,34 @@ import com.example.database.repository.SocialAgentRepository
 import kotlinx.coroutines.flow.Flow
 import java.util.UUID
 
+/**
+ * Compatibility adapter preserving the existing SocialMediaScraper test & pipeline hooks,
+ * backed by real OpenGraphMetadataScraper and Room persistence.
+ */
 class MockSocialMediaScraper(
-    private val repository: SocialAgentRepository
+    private val repository: SocialAgentRepository,
+    private val openGraphScraper: OpenGraphMetadataScraper = OpenGraphMetadataScraper(repository)
 ) : SocialMediaScraper {
 
     override suspend fun scrapePlatformPosts(platform: String, limit: Int): List<ScrapedPostMetadataEntity> {
-        val now = System.currentTimeMillis()
-        val posts = (1..limit).map { index ->
-            ScrapedPostMetadataEntity(
-                id = "scraped-${platform.lowercase()}-${UUID.randomUUID()}",
-                platform = platform,
-                originalPostUrl = "https://$platform.com/post/$index",
-                authorHandle = "@user_$index",
-                authorDisplayName = "خبير $platform #$index",
-                postContent = "منشور تحليلي رقم $index عن الذكاء الاصطناعي والتسويق الإلكتروني عبر $platform.",
-                likesCount = 150 * index,
-                commentsCount = 20 * index,
-                sharesCount = 10 * index,
-                viewsCount = 1200 * index,
-                scrapedTimestamp = now - (index * 3600_000L),
-                postPublishedTimestamp = now - (index * 7200_000L)
-            )
+        val targetUrls = repository.getAllRecentPagesSync()
+            .filter { platform == "ALL" || it.platform == platform }
+            .map { it.url }
+            .take(limit)
+
+        if (targetUrls.isNotEmpty()) {
+            openGraphScraper.scrapeBatch(targetUrls, maxConcurrency = 3)
         }
-        repository.insertScrapedPosts(posts)
-        return posts
+        return repository.getRecentPostsSync(limit)
+            .filter { platform == "ALL" || it.platform == platform }
     }
 
     override suspend fun scrapeUrl(url: String): ScrapedPostMetadataEntity? {
+        val result = openGraphScraper.scrapeAndSave(url)
+        result.onSuccess { meta ->
+            return repository.findScrapedPostByUrl(meta.resolvedUrl)
+        }
+
         val platform = when {
             url.contains("x.com") || url.contains("twitter.com") -> "X_TWITTER"
             url.contains("linkedin.com") -> "LINKEDIN"
@@ -43,12 +44,12 @@ class MockSocialMediaScraper(
             id = "url-${UUID.randomUUID()}",
             platform = platform,
             originalPostUrl = url,
-            authorHandle = "@web_author",
-            authorDisplayName = "ناشر المحتوى",
-            postContent = "تم استخراج محتوى الصفحة والبيانات الوصفية بنجاح من الرابط: $url",
+            authorHandle = "@web_index",
+            authorDisplayName = platform,
+            postContent = "فهرسة الرابط محلياً في Room: $url",
             scrapedTimestamp = System.currentTimeMillis()
         )
-        repository.insertScrapedPost(entity)
+        repository.upsertScrapedPostByUrl(entity)
         return entity
     }
 
@@ -57,17 +58,6 @@ class MockSocialMediaScraper(
     }
 
     suspend fun testDatabasePipeline(): Boolean {
-        val sample = ScrapedPostMetadataEntity(
-            id = "pipeline-test-id",
-            platform = "X_TWITTER",
-            originalPostUrl = "https://x.com/pipeline/test",
-            authorHandle = "@tester",
-            authorDisplayName = "Pipeline Tester",
-            postContent = "Verifying database pipeline write and read integrity.",
-            scrapedTimestamp = System.currentTimeMillis()
-        )
-        repository.insertScrapedPost(sample)
-        val fetched = repository.getScrapedPostById("pipeline-test-id")
-        return fetched != null && fetched.id == sample.id
+        return repository.verifyDatabaseIntegrity()
     }
 }

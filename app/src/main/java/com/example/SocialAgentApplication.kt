@@ -6,8 +6,13 @@ import android.system.Os
 import android.util.Log
 import coil.ImageLoader
 import coil.ImageLoaderFactory
+import com.example.backend.AppContainer
 
 class SocialAgentApplication : Application(), ImageLoaderFactory {
+
+    val appContainer: AppContainer by lazy {
+        AppContainer(this)
+    }
 
     companion object {
         init {

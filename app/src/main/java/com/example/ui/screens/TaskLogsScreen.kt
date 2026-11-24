@@ -4,17 +4,13 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -33,7 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.database.entity.TabTaskLogEntity
 import com.example.ui.MainViewModel
-import com.example.ui.theme.*
+import com.example.ui.theme.AppTheme
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -44,12 +40,13 @@ fun TaskLogsScreen(
     onNavigateToTab: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val c = AppTheme.colors
     val logs by viewModel.allTabTaskLogs.collectAsState()
     val tabs by viewModel.browserManager.tabs.collectAsState()
     val context = LocalContext.current
 
-    var selectedTabFilter by remember { mutableStateOf<String?>(null) }
-    var selectedStatusFilter by remember { mutableStateOf("ALL") }
+    val selectedTabFilter by viewModel.logsTabFilter.collectAsState()
+    val selectedStatusFilter by viewModel.logsStatusFilter.collectAsState()
     var searchQuery by remember { mutableStateOf("") }
     var showClearConfirmDialog by remember { mutableStateOf(false) }
 
@@ -78,12 +75,12 @@ fun TaskLogsScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(DarkBackground)
+            .background(c.background)
     ) {
         // 1. Header & Metric Badges
         Surface(
-            color = DarkSurface,
-            border = BorderStroke(1.dp, CardBorderSubtle),
+            color = c.surface,
+            border = BorderStroke(1.dp, c.borderSubtle),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
@@ -101,12 +98,12 @@ fun TaskLogsScreen(
                             text = "سجل مهام الذكاء الاصطناعي",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = TextPrimary
+                            color = c.textPrimary
                         )
                         Text(
                             text = "تتبع الإجراءات والمخرجات لكل صفحة متصفح",
                             style = MaterialTheme.typography.bodySmall,
-                            color = TextSecondary
+                            color = c.textSecondary
                         )
                     }
 
@@ -114,14 +111,13 @@ fun TaskLogsScreen(
                         IconButton(
                             onClick = { showClearConfirmDialog = true },
                             modifier = Modifier
-                                .size(36.dp)
-                                .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+                                .minimumInteractiveComponentSize()
                                 .testTag("clear_logs_button")
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.DeleteSweep,
                                 contentDescription = "مسح السجل",
-                                tint = AlertRed,
+                                tint = c.error,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -130,16 +126,15 @@ fun TaskLogsScreen(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Stats Row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    LogStatBadge(label = "الإجمالي", count = logs.size.toString(), color = TextPrimary, modifier = Modifier.weight(1f))
-                    LogStatBadge(label = "مكتملة", count = completedCount.toString(), color = EmeraldGreen, modifier = Modifier.weight(1f))
-                    LogStatBadge(label = "قيد المعالجة", count = inProgressCount.toString(), color = AccentAmber, modifier = Modifier.weight(1f))
+                    LogStatBadge(label = "الإجمالي", count = logs.size.toString(), color = c.textPrimary, modifier = Modifier.weight(1f))
+                    LogStatBadge(label = "مكتملة", count = completedCount.toString(), color = c.success, modifier = Modifier.weight(1f))
+                    LogStatBadge(label = "قيد المعالجة", count = inProgressCount.toString(), color = c.warning, modifier = Modifier.weight(1f))
                     if (failedCount > 0) {
-                        LogStatBadge(label = "أخطاء", count = failedCount.toString(), color = AlertRed, modifier = Modifier.weight(1f))
+                        LogStatBadge(label = "أخطاء", count = failedCount.toString(), color = c.error, modifier = Modifier.weight(1f))
                     }
                 }
             }
@@ -147,8 +142,8 @@ fun TaskLogsScreen(
 
         // 2. Filters & Search Section
         Surface(
-            color = CardSurface,
-            border = BorderStroke(1.dp, CardBorderSubtle),
+            color = c.card,
+            border = BorderStroke(1.dp, c.borderSubtle),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
@@ -157,35 +152,35 @@ fun TaskLogsScreen(
                     .padding(horizontal = 16.dp, vertical = 10.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Search Input
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    placeholder = { Text("بحث في المهام والمخرجات...", style = MaterialTheme.typography.bodySmall, color = TextMuted) },
+                    placeholder = { Text("بحث في المهام والمخرجات...", style = MaterialTheme.typography.bodySmall, color = c.textMuted) },
                     leadingIcon = {
-                        Icon(imageVector = Icons.Filled.Search, contentDescription = null, tint = TextMuted, modifier = Modifier.size(16.dp))
+                        Icon(imageVector = Icons.Filled.Search, contentDescription = null, tint = c.textMuted, modifier = Modifier.size(16.dp))
                     },
                     trailingIcon = {
                         if (searchQuery.isNotBlank()) {
-                            IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(24.dp)) {
-                                Icon(imageVector = Icons.Filled.Clear, contentDescription = "مسح", tint = TextMuted, modifier = Modifier.size(14.dp))
+                            IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(28.dp)) {
+                                Icon(imageVector = Icons.Filled.Clear, contentDescription = "مسح", tint = c.textMuted, modifier = Modifier.size(14.dp))
                             }
                         }
                     },
                     singleLine = true,
-                    shape = RoundedCornerShape(8.dp),
+                    shape = RoundedCornerShape(10.dp),
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("logs_search_input"),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = AccentIndigo,
-                        unfocusedBorderColor = CardBorder,
-                        focusedContainerColor = CardSurfaceElevated,
-                        unfocusedContainerColor = CardSurfaceElevated
+                        focusedBorderColor = c.accent,
+                        unfocusedBorderColor = c.border,
+                        focusedContainerColor = c.cardElevated,
+                        unfocusedContainerColor = c.cardElevated,
+                        focusedTextColor = c.textPrimary,
+                        unfocusedTextColor = c.textPrimary
                     )
                 )
 
-                // Tab Filter Chips
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -193,17 +188,19 @@ fun TaskLogsScreen(
                     item {
                         val isSelected = selectedTabFilter == null
                         Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = if (isSelected) AccentIndigo.copy(alpha = 0.2f) else CardSurfaceElevated,
-                            border = BorderStroke(1.dp, if (isSelected) AccentIndigo else CardBorderSubtle),
-                            modifier = Modifier.clickable { selectedTabFilter = null }
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (isSelected) c.accent else c.cardElevated,
+                            border = BorderStroke(1.dp, if (isSelected) c.accent else c.borderSubtle),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { viewModel.setLogsTabFilter(null) }
                         ) {
                             Text(
                                 text = "جميع النوافذ (${logs.size})",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isSelected) NeonCyan else TextSecondary,
-                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
+                                color = if (isSelected) Color.White else c.textSecondary,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                             )
                         }
                     }
@@ -212,25 +209,26 @@ fun TaskLogsScreen(
                         val isSelected = selectedTabFilter == tab.id
                         val count = logs.count { it.tabId == tab.id }
                         Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = if (isSelected) AccentIndigo.copy(alpha = 0.2f) else CardSurfaceElevated,
-                            border = BorderStroke(1.dp, if (isSelected) AccentIndigo else CardBorderSubtle),
-                            modifier = Modifier.clickable { selectedTabFilter = tab.id }
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (isSelected) c.accent else c.cardElevated,
+                            border = BorderStroke(1.dp, if (isSelected) c.accent else c.borderSubtle),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { viewModel.setLogsTabFilter(tab.id) }
                         ) {
                             Text(
                                 text = "${tab.title} ($count)",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isSelected) NeonCyan else TextSecondary,
+                                color = if (isSelected) Color.White else c.textSecondary,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                             )
                         }
                     }
                 }
 
-                // Status Filter Row
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -238,28 +236,28 @@ fun TaskLogsScreen(
                     StatusFilterPill(
                         label = "الكل",
                         isSelected = selectedStatusFilter == "ALL",
-                        onClick = { selectedStatusFilter = "ALL" }
+                        onClick = { viewModel.setLogsStatusFilter("ALL") }
                     )
                     StatusFilterPill(
                         label = "مكتملة ($completedCount)",
                         isSelected = selectedStatusFilter == "COMPLETED",
-                        onClick = { selectedStatusFilter = "COMPLETED" },
-                        activeColor = EmeraldGreen
+                        onClick = { viewModel.setLogsStatusFilter("COMPLETED") },
+                        activeColor = c.success
                     )
                     if (inProgressCount > 0) {
                         StatusFilterPill(
                             label = "قيد التنفيذ ($inProgressCount)",
                             isSelected = selectedStatusFilter == "IN_PROGRESS",
-                            onClick = { selectedStatusFilter = "IN_PROGRESS" },
-                            activeColor = AccentAmber
+                            onClick = { viewModel.setLogsStatusFilter("IN_PROGRESS") },
+                            activeColor = c.warning
                         )
                     }
                     if (failedCount > 0) {
                         StatusFilterPill(
                             label = "أخطاء ($failedCount)",
                             isSelected = selectedStatusFilter == "FAILED",
-                            onClick = { selectedStatusFilter = "FAILED" },
-                            activeColor = AlertRed
+                            onClick = { viewModel.setLogsStatusFilter("FAILED") },
+                            activeColor = c.error
                         )
                     }
                 }
@@ -278,20 +276,21 @@ fun TaskLogsScreen(
                     Icon(
                         imageVector = Icons.Outlined.History,
                         contentDescription = null,
-                        tint = TextMuted,
+                        tint = c.textMuted,
                         modifier = Modifier.size(48.dp)
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
                         text = if (logs.isEmpty()) "لا توجد مهام مسجلة حتى الآن" else "لا توجد نتائج مطابقة للتصفية",
                         style = MaterialTheme.typography.titleMedium,
-                        color = TextPrimary
+                        fontWeight = FontWeight.Bold,
+                        color = c.textPrimary
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "عند تنفيذ أي أمر على صفحات المتصفح يتم تسجيل الحالة والمخرجات هنا تلقائياً",
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextMuted
+                        color = c.textMuted
                     )
                 }
             }
@@ -325,25 +324,24 @@ fun TaskLogsScreen(
         }
     }
 
-    // Confirmation dialog for clearing logs
     if (showClearConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showClearConfirmDialog = false },
-            containerColor = CardSurfaceElevated,
-            shape = RoundedCornerShape(16.dp),
+            containerColor = c.card,
+            shape = RoundedCornerShape(18.dp),
             title = {
                 Text(
                     text = "مسح سجل المهام بالكامل؟",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = TextPrimary
+                    color = c.textPrimary
                 )
             },
             text = {
                 Text(
                     text = "سيتم حذف كافة السجلات والمخرجات السابقة لجميع النوافذ.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = TextSecondary
+                    color = c.textSecondary
                 )
             },
             confirmButton = {
@@ -352,15 +350,15 @@ fun TaskLogsScreen(
                         viewModel.clearAllTaskLogs()
                         showClearConfirmDialog = false
                     },
-                    shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = AlertRed)
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = c.error, contentColor = Color.White)
                 ) {
                     Text("مسح الكل")
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showClearConfirmDialog = false }) {
-                    Text("إلغاء", color = TextSecondary)
+                    Text("إلغاء", color = c.textSecondary)
                 }
             }
         )
@@ -376,11 +374,12 @@ fun TabTaskLogItemCard(
     onCopyOutput: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val c = AppTheme.colors
     val statusColor = when (log.status) {
-        "COMPLETED" -> EmeraldGreen
-        "IN_PROGRESS" -> AccentAmber
-        "FAILED" -> AlertRed
-        else -> TextMuted
+        "COMPLETED" -> c.success
+        "IN_PROGRESS" -> c.warning
+        "FAILED" -> c.error
+        else -> c.textMuted
     }
 
     val statusLabel = when (log.status) {
@@ -393,16 +392,16 @@ fun TabTaskLogItemCard(
     val dateFormat = remember { SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault()) }
     val formattedTime = remember(log.timestamp) { dateFormat.format(Date(log.timestamp)) }
 
-    Card(
+    Surface(
         modifier = modifier
             .fillMaxWidth()
             .testTag("log_item_${log.id}"),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = CardSurface),
-        border = BorderStroke(1.dp, CardBorder)
+        shape = RoundedCornerShape(16.dp),
+        color = c.card,
+        shadowElevation = if (c.isDark) 0.dp else 1.dp,
+        border = BorderStroke(1.dp, c.borderSubtle)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
-            // Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -413,9 +412,9 @@ fun TabTaskLogItemCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = CardSurfaceElevated,
-                        modifier = Modifier.size(30.dp)
+                        shape = RoundedCornerShape(8.dp),
+                        color = c.accentSoft,
+                        modifier = Modifier.size(32.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
@@ -426,8 +425,8 @@ fun TabTaskLogItemCard(
                                     else -> Icons.Filled.Language
                                 },
                                 contentDescription = null,
-                                tint = NeonCyan,
-                                modifier = Modifier.size(15.dp)
+                                tint = c.accent,
+                                modifier = Modifier.size(16.dp)
                             )
                         }
                     }
@@ -443,7 +442,7 @@ fun TabTaskLogItemCard(
                                 text = log.tabTitle,
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = TextPrimary,
+                                color = c.textPrimary,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -451,46 +450,45 @@ fun TabTaskLogItemCard(
                             Icon(
                                 imageVector = Icons.Filled.OpenInNew,
                                 contentDescription = "فتح النافذة",
-                                tint = TextMuted,
-                                modifier = Modifier.size(12.dp)
+                                tint = c.textMuted,
+                                modifier = Modifier.size(13.dp)
                             )
                         }
                         Text(
                             text = formattedTime,
                             style = MaterialTheme.typography.labelSmall,
-                            color = TextMuted
+                            color = c.textMuted
                         )
                     }
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Surface(
-                        shape = RoundedCornerShape(4.dp),
-                        color = statusColor.copy(alpha = 0.15f)
+                        shape = RoundedCornerShape(6.dp),
+                        color = statusColor.copy(alpha = 0.12f)
                     ) {
                         Text(
                             text = statusLabel,
                             style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold,
+                            fontWeight = FontWeight.Bold,
                             color = statusColor,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                         )
                     }
 
                     Spacer(modifier = Modifier.width(4.dp))
 
-                    IconButton(onClick = onDeleteLog, modifier = Modifier.size(28.dp)) {
-                        Icon(imageVector = Icons.Filled.Close, contentDescription = "حذف السجل", tint = TextMuted, modifier = Modifier.size(14.dp))
+                    IconButton(onClick = onDeleteLog, modifier = Modifier.size(32.dp)) {
+                        Icon(imageVector = Icons.Filled.Close, contentDescription = "حذف السجل", tint = c.textMuted, modifier = Modifier.size(15.dp))
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Prompt Box
             Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = CardSurfaceElevated,
+                shape = RoundedCornerShape(10.dp),
+                color = c.cardElevated,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(10.dp)) {
@@ -498,24 +496,23 @@ fun TabTaskLogItemCard(
                         text = "المهمة المطلوبة:",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
-                        color = TextSecondary
+                        color = c.textSecondary
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = log.taskPrompt,
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextPrimary
+                        color = c.textPrimary
                     )
                 }
             }
 
-            // Output Box
             if (log.outputResult.isNotBlank()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = CardSurfaceElevated,
-                    border = BorderStroke(1.dp, CardBorderSubtle),
+                    shape = RoundedCornerShape(10.dp),
+                    color = c.cardElevated,
+                    border = BorderStroke(1.dp, c.borderSubtle),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(10.dp)) {
@@ -528,24 +525,23 @@ fun TabTaskLogItemCard(
                                 text = "المخرجات والنتيجة:",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = NeonCyan
+                                color = c.accent
                             )
-                            IconButton(onClick = onCopyOutput, modifier = Modifier.size(24.dp)) {
-                                Icon(imageVector = Icons.Outlined.ContentCopy, contentDescription = "نسخ", tint = TextSecondary, modifier = Modifier.size(13.dp))
+                            IconButton(onClick = onCopyOutput, modifier = Modifier.size(28.dp)) {
+                                Icon(imageVector = Icons.Outlined.ContentCopy, contentDescription = "نسخ", tint = c.textSecondary, modifier = Modifier.size(14.dp))
                             }
                         }
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = log.outputResult,
                             style = MaterialTheme.typography.bodySmall,
-                            color = TextPrimary,
+                            color = c.textPrimary,
                             lineHeight = 18.sp
                         )
                     }
                 }
             }
 
-            // Metadata & Rerun
             Spacer(modifier = Modifier.height(10.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -557,26 +553,26 @@ fun TabTaskLogItemCard(
                         Text(
                             text = "${log.durationMs}ms",
                             style = MaterialTheme.typography.labelSmall,
-                            color = TextMuted
+                            color = c.textMuted
                         )
                     }
                     if (log.tokensUsed > 0) {
                         Text(
                             text = "${log.tokensUsed} token",
                             style = MaterialTheme.typography.labelSmall,
-                            color = TextMuted
+                            color = c.textMuted
                         )
                     }
                 }
 
                 TextButton(
                     onClick = onRerunTask,
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                    modifier = Modifier.height(28.dp)
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                    modifier = Modifier.height(32.dp)
                 ) {
-                    Icon(imageVector = Icons.Filled.Replay, contentDescription = null, tint = AccentIndigo, modifier = Modifier.size(13.dp))
+                    Icon(imageVector = Icons.Filled.Replay, contentDescription = null, tint = c.accent, modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("إعادة التنفيذ", style = MaterialTheme.typography.labelSmall, color = AccentIndigo)
+                    Text("إعادة التنفيذ", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = c.accent)
                 }
             }
         }
@@ -590,18 +586,19 @@ fun LogStatBadge(
     color: Color,
     modifier: Modifier = Modifier
 ) {
+    val c = AppTheme.colors
     Surface(
-        shape = RoundedCornerShape(8.dp),
-        color = CardSurface,
-        border = BorderStroke(1.dp, CardBorderSubtle),
+        shape = RoundedCornerShape(10.dp),
+        color = c.cardElevated,
+        border = BorderStroke(1.dp, c.borderSubtle),
         modifier = modifier
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(text = count, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = color)
-            Text(text = label, style = MaterialTheme.typography.labelSmall, color = TextMuted)
+            Text(text = label, style = MaterialTheme.typography.labelSmall, color = c.textMuted)
         }
     }
 }
@@ -611,22 +608,26 @@ fun StatusFilterPill(
     label: String,
     isSelected: Boolean,
     onClick: () -> Unit,
-    activeColor: Color = AccentIndigo
+    activeColor: Color? = null
 ) {
+    val c = AppTheme.colors
+    val resolvedColor = activeColor ?: c.accent
+
     Surface(
-        shape = RoundedCornerShape(6.dp),
-        color = if (isSelected) activeColor.copy(alpha = 0.2f) else CardSurfaceElevated,
-        border = BorderStroke(1.dp, if (isSelected) activeColor else CardBorderSubtle),
+        shape = RoundedCornerShape(8.dp),
+        color = if (isSelected) resolvedColor.copy(alpha = 0.14f) else c.cardElevated,
+        border = BorderStroke(1.dp, if (isSelected) resolvedColor else c.borderSubtle),
         modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
             .clickable { onClick() }
-            .defaultMinSize(minHeight = 28.dp)
+            .defaultMinSize(minHeight = 30.dp)
     ) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-            color = if (isSelected) (if (activeColor == AccentIndigo) NeonCyan else activeColor) else TextSecondary,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+            color = if (isSelected) resolvedColor else c.textSecondary,
+            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
         )
     }
 }

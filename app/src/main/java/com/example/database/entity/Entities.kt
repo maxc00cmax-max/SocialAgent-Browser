@@ -1,13 +1,21 @@
 package com.example.database.entity
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "scraped_posts_metadata")
+@Entity(
+    tableName = "scraped_posts_metadata",
+    indices = [
+        Index(value = ["platform"]),
+        Index(value = ["scrapedTimestamp"]),
+        Index(value = ["originalPostUrl"])
+    ]
+)
 data class ScrapedPostMetadataEntity(
     @PrimaryKey
     val id: String,
-    val platform: String, // "X_TWITTER", "LINKEDIN", "INSTAGRAM", "TIKTOK", "FACEBOOK", "REDDIT"
+    val platform: String, // "X_TWITTER", "LINKEDIN", "INSTAGRAM", "TIKTOK", "FACEBOOK", "REDDIT", "WEB"
     val originalPostUrl: String,
     val authorHandle: String = "",
     val authorDisplayName: String = "",
@@ -66,7 +74,13 @@ data class TokenLogEntity(
     val timestamp: Long = System.currentTimeMillis()
 )
 
-@Entity(tableName = "orchestration_tasks")
+@Entity(
+    tableName = "orchestration_tasks",
+    indices = [
+        Index(value = ["status"]),
+        Index(value = ["createdAt"])
+    ]
+)
 data class OrchestrationTaskEntity(
     @PrimaryKey
     val id: String,
@@ -120,7 +134,14 @@ data class PostDraftEntity(
     val createdAt: Long = System.currentTimeMillis()
 )
 
-@Entity(tableName = "tab_task_logs")
+@Entity(
+    tableName = "tab_task_logs",
+    indices = [
+        Index(value = ["tabId"]),
+        Index(value = ["timestamp"]),
+        Index(value = ["status"])
+    ]
+)
 data class TabTaskLogEntity(
     @PrimaryKey
     val id: String = java.util.UUID.randomUUID().toString(),
@@ -135,7 +156,15 @@ data class TabTaskLogEntity(
     val tokensUsed: Int = 0
 )
 
-@Entity(tableName = "recent_pages")
+@Entity(
+    tableName = "recent_pages",
+    indices = [
+        Index(value = ["url"], unique = true),
+        Index(value = ["platform"]),
+        Index(value = ["lastVisitedTimestamp"]),
+        Index(value = ["isPinned"])
+    ]
+)
 data class RecentPageEntity(
     @PrimaryKey
     val id: String = java.util.UUID.randomUUID().toString(),
@@ -143,10 +172,39 @@ data class RecentPageEntity(
     val title: String,
     val platform: String = "WEB", // "X_TWITTER", "LINKEDIN", "INSTAGRAM", "TIKTOK", "FACEBOOK", "REDDIT", "WEB"
     val faviconUrl: String? = null,
+    val ogImageUrl: String? = null,
+    val siteName: String? = null,
     val previewSnippet: String = "",
     val visitCount: Int = 1,
     val lastVisitedTimestamp: Long = System.currentTimeMillis(),
     val isPinned: Boolean = false,
     val isAvailableOffline: Boolean = true
+)
+
+@Entity(
+    tableName = "cached_scraped_metadata",
+    indices = [
+        Index(value = ["requestedUrl"]),
+        Index(value = ["resolvedUrl"], unique = true),
+        Index(value = ["scrapedAt"]),
+        Index(value = ["platform"])
+    ]
+)
+data class CachedMetadataEntity(
+    @PrimaryKey
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val requestedUrl: String,
+    val resolvedUrl: String,
+    val title: String,
+    val description: String = "",
+    val ogImageUrl: String? = null,
+    val siteName: String? = null,
+    val ogType: String? = null,
+    val faviconUrl: String? = null,
+    val platform: String = "WEB",
+    val author: String? = null,
+    val hashtagsCsv: String = "",
+    val extractedTagsCount: Int = 0,
+    val scrapedAt: Long = System.currentTimeMillis()
 )
 

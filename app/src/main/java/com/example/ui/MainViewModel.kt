@@ -1,23 +1,21 @@
 package com.example.ui
 
 import android.app.Application
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.ai.GeminiProvider
-import com.example.browser.AndroidBrowserManager
-import com.example.browser.BrowserTabState
-import com.example.browser.HumanBehaviorEngine
-import com.example.browser.TabAnalysisStatus
-import com.example.database.AppDatabase
-import com.example.database.entity.BrowserTabEntity
-import com.example.database.entity.TabTaskLogEntity
-import com.example.database.entity.TokenLogEntity
-import com.example.database.repository.SocialAgentRepository
-import com.example.scraper.MockSocialMediaScraper
+import androidx.work.WorkInfo
+import com.example.SocialAgentApplication
+import com.example.backend.AppContainer
+import com.example.backend.BackendHealthReport
 import com.example.bridge.AppBridgeContract
-import com.example.bridge.AppBridgeManager
-import com.example.bridge.BridgeStatus
-import com.example.bridge.BridgeExchangeEvent
+import com.example.browser.TabAnalysisStatus
+import com.example.database.entity.CachedMetadataEntity
+import com.example.scraper.MetadataScrapeWorker
+import com.example.scraper.OpenGraphScrapeState
+import com.example.scraper.toOpenGraphMetadata
+import com.example.ui.screens.BrowserViewMode
+import java.util.UUID
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,30 +24,37 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.util.UUID
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
-    val database = AppDatabase.getDatabase(application)
-    val repository = SocialAgentRepository(database)
-    val browserManager = AndroidBrowserManager(application)
-    val geminiProvider = GeminiProvider()
-    val socialMediaScraper = MockSocialMediaScraper(repository)
+    private val container: AppContainer =
+        (application as? SocialAgentApplication)?.appContainer ?: AppContainer(application)
 
-    // Master System Running State (زر تشغيل وإيقاف)
+    val database = container.database
+    val repository = container.repository
+    val browserManager = container.browserManager
+    val geminiProvider = container.geminiProvider
+    val openGraphScraper = container.openGraphScraper
+    val socialMediaScraper = container.socialScraper
+    val orchestrator = container.orchestrator
+
+    private val _openGraphScrapeState = MutableStateFlow<OpenGraphScrapeState>(OpenGraphScrapeState.Idle)
+    val openGraphScrapeState: StateFlow<OpenGraphScrapeState> = _openGraphScrapeState.asStateFlow()
+
+    // Master System Running State
     private val _isSystemRunning = MutableStateFlow(false)
     val isSystemRunning: StateFlow<Boolean> = _isSystemRunning.asStateFlow()
 
     private val _systemStatusMessage = MutableStateFlow("النظام متوقف. اضغط على 'تشغيل النظام' للبدء في تحليل النوافذ المفتوحة.")
     val systemStatusMessage: StateFlow<String> = _systemStatusMessage.asStateFlow()
 
-    // Map of per-tab prompt input text
+    // Per-tab prompt input text
     private val _tabPromptInputs = MutableStateFlow<Map<String, String>>(emptyMap())
     val tabPromptInputs: StateFlow<Map<String, String>> = _tabPromptInputs.asStateFlow()
 
     private var autoAnalysisJob: Job? = null
 
-    // Room Database flows
+    // Reactive Room Database Flows
     val allScrapedPosts = repository.allScrapedPosts.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5000),
@@ -68,11 +73,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         0
     )
 
+    val totalCostUsd = repository.totalCostUsd.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        0.0
+    )
+
     val allTabTaskLogs = repository.allTabTaskLogs.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5000),
         emptyList()
     )
+
+    val allOrchestrationTasks = repository.allOrchestrationTasks.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        emptyList()
+    )
+
+    val activeOrchestrationTasksCount = repository.activeOrchestrationTasksCount.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        0
+    )
+
+    val backendHealthReport: StateFlow<BackendHealthReport?> = orchestrator.lastHealthReport
 
     // Offline Recent Pages Room state
     val allRecentPages = repository.allRecentPages.stateIn(
@@ -93,11 +118,49 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         0
     )
 
+    // Instant Offline Cached Scraped Metadata (Room Cache)
+    val cachedMetadataList: StateFlow<List<CachedMetadataEntity>> = repository.allCachedMetadata.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        emptyList()
+    )
+
+    val cachedMetadataCount: StateFlow<Int> = repository.cachedMetadataCount.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        0
+    )
+
+    // Background WorkManager Metadata Scrape Observation
+    val backgroundScrapeWorkInfos: StateFlow<List<WorkInfo>> =
+        MetadataScrapeWorker.observeWorkInfos(application).stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            emptyList()
+        )
+
     val recentPagesFilterPlatform = MutableStateFlow<String?>(null)
     val recentPagesSearchQuery = MutableStateFlow("")
+    val recentPagesPinnedOnly = MutableStateFlow(false)
+    val recentPagesSortByVisits = MutableStateFlow(false)
+
+    // Lifted Section States for Section-Specific Side Drawers
+    val browserViewMode = MutableStateFlow(BrowserViewMode.BROWSER_LIST)
+    val logsStatusFilter = MutableStateFlow("ALL")
+    val logsTabFilter = MutableStateFlow<String?>(null)
+    val databasePlatformFilter = MutableStateFlow("ALL")
+    val databaseSearchQuery = MutableStateFlow("")
+
+    // App Theme & Settings Preferences (Light Mode Primary)
+    private val uiPrefs = application.getSharedPreferences("social_agent_ui_prefs", Context.MODE_PRIVATE)
+    private val _isDarkMode = MutableStateFlow(uiPrefs.getBoolean("is_dark_mode", false))
+    val isDarkMode: StateFlow<Boolean> = _isDarkMode.asStateFlow()
+
+    private val _autoAnalyzeNewTabs = MutableStateFlow(uiPrefs.getBoolean("auto_analyze_new_tabs", true))
+    val autoAnalyzeNewTabs: StateFlow<Boolean> = _autoAnalyzeNewTabs.asStateFlow()
 
     // Local Offline IPC App Bridge
-    val bridgeManager = AppBridgeManager.getInstance(application)
+    val bridgeManager = container.bridgeManager
     val bridgeStatus = bridgeManager.connectionStatus
     val bridgeStatusDetail = bridgeManager.statusDetail
     val bridgeTargetAuthority = bridgeManager.targetAuthority
@@ -109,98 +172,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val pairedPartnerToken = bridgeManager.pairedPartnerToken
 
     init {
-        // Connect browser page visited events to RecentPage Room entity
+        // Persist live WebView page visits into Room
         browserManager.onPageVisited = { url, title ->
             recordRecentPageVisit(url, title)
         }
 
-        // Connect real-time ContentObserver & WorkManager events to Browser Orchestration
+        // Persist captured live DOM OpenGraph enrichment into Room
+        browserManager.onDomSnapshotCaptured = { _, snapshot ->
+            viewModelScope.launch {
+                val snippet = snapshot.ogDescription ?: snapshot.textExcerpt.take(200)
+                repository.recordPageVisit(
+                    url = snapshot.url,
+                    title = snapshot.ogTitle ?: snapshot.title,
+                    snippet = snippet,
+                    ogImageUrl = snapshot.ogImageUrl
+                )
+            }
+        }
+
+        // Real-time ContentObserver & WorkManager events -> Browser Orchestration
         bridgeManager.onDataOrchestratedListener = { count, summary ->
             browserManager.orchestrateExternalDataArrival(count, summary)
         }
 
-        // Pre-seed sample past task logs and recent social media pages if empty
+        // Restore persisted tabs & seed initial starter data cleanly via Orchestrator
         viewModelScope.launch {
-            kotlinx.coroutines.delay(500)
-            if (allTabTaskLogs.value.isEmpty()) {
-                seedInitialTaskLogs()
-            }
-            if (allRecentPages.value.isEmpty()) {
-                seedInitialRecentPages()
-            }
+            orchestrator.initializeAndRestoreState()
+            orchestrator.runDiagnostics()
         }
-    }
-
-    private suspend fun seedInitialRecentPages() {
-        val initialRecentPages = listOf(
-            com.example.database.entity.RecentPageEntity(
-                id = UUID.randomUUID().toString(),
-                title = "OpenAI on X (Twitter)",
-                url = "https://x.com/OpenAI",
-                platform = "X_TWITTER",
-                previewSnippet = "أحدث أبحاث الذكاء الاصطناعي التوليدي، نماذج التفكير والاستدلال، ومستجدات GPT-4o.",
-                visitCount = 14,
-                lastVisitedTimestamp = System.currentTimeMillis() - 1200000L,
-                isPinned = true,
-                isAvailableOffline = true
-            ),
-            com.example.database.entity.RecentPageEntity(
-                id = UUID.randomUUID().toString(),
-                title = "DeepSeek AI Research on X",
-                url = "https://x.com/deepseek_ai",
-                platform = "X_TWITTER",
-                previewSnippet = "تطورات نماذج التفكير مفتوحة المصدر وبنية الاستدلال السريع للوكلاء الأذكياء.",
-                visitCount = 9,
-                lastVisitedTimestamp = System.currentTimeMillis() - 3600000L,
-                isPinned = true,
-                isAvailableOffline = true
-            ),
-            com.example.database.entity.RecentPageEntity(
-                id = UUID.randomUUID().toString(),
-                title = "Android Developers Community",
-                url = "https://linkedin.com/company/android-developers",
-                platform = "LINKEDIN",
-                previewSnippet = "دليل المطورين لأحدث ميزات Jetpack Compose وAndroid 15 وهندسة النظم.",
-                visitCount = 6,
-                lastVisitedTimestamp = System.currentTimeMillis() - 7200000L,
-                isPinned = false,
-                isAvailableOffline = true
-            ),
-            com.example.database.entity.RecentPageEntity(
-                id = UUID.randomUUID().toString(),
-                title = "Tech Trends & AI on Reddit",
-                url = "https://reddit.com/r/technology",
-                platform = "REDDIT",
-                previewSnippet = "نقاشات المجتمع التقني حول الأتمتة المتقدمة، البرمجة بالوكلاء، ومستقبل أدوات التطوير.",
-                visitCount = 8,
-                lastVisitedTimestamp = System.currentTimeMillis() - 18000000L,
-                isPinned = false,
-                isAvailableOffline = true
-            ),
-            com.example.database.entity.RecentPageEntity(
-                id = UUID.randomUUID().toString(),
-                title = "Google DeepMind on LinkedIn",
-                url = "https://linkedin.com/company/google-deepmind",
-                platform = "LINKEDIN",
-                previewSnippet = "إعلانات نماذج Gemini المتعددة الوسائط والحلول المؤسسية للذكاء الاصطناعي.",
-                visitCount = 11,
-                lastVisitedTimestamp = System.currentTimeMillis() - 86400000L,
-                isPinned = false,
-                isAvailableOffline = true
-            ),
-            com.example.database.entity.RecentPageEntity(
-                id = UUID.randomUUID().toString(),
-                title = "Instagram Creators Hub",
-                url = "https://instagram.com/creators",
-                platform = "INSTAGRAM",
-                previewSnippet = "استراتيجيات صناعة المحتوى، خوارزميات ريلز الحديثة، وطرق مضاعفة التفاعل والتواصل.",
-                visitCount = 5,
-                lastVisitedTimestamp = System.currentTimeMillis() - 172800000L,
-                isPinned = false,
-                isAvailableOffline = true
-            )
-        )
-        repository.insertRecentPages(initialRecentPages)
     }
 
     fun recordRecentPageVisit(url: String, title: String, platform: String? = null, snippet: String = "") {
@@ -267,55 +266,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private suspend fun seedInitialTaskLogs() {
-        val currentTabs = browserManager.tabs.value
-        val xTab = currentTabs.find { it.url.contains("x.com") }
-        val linkedInTab = currentTabs.find { it.url.contains("linkedin.com") }
-
-        if (xTab != null) {
-            repository.insertTaskLog(
-                TabTaskLogEntity(
-                    id = UUID.randomUUID().toString(),
-                    tabId = xTab.id,
-                    tabTitle = xTab.title,
-                    tabUrl = xTab.url,
-                    taskPrompt = "استخرج أحدث التغريدات والهاشتاجات الرائجة في التقنية",
-                    status = "COMPLETED",
-                    outputResult = "✅ تم استخراج 12 منشوراً تفاعلياً، 5 وسوم رائجة (#AI, #TechTrends2026)، وتحديد 8 حسابات مؤثرة.",
-                    timestamp = System.currentTimeMillis() - 1800000L,
-                    durationMs = 2450L,
-                    tokensUsed = 620
-                )
-            )
-        }
-
-        if (linkedInTab != null) {
-            repository.insertTaskLog(
-                TabTaskLogEntity(
-                    id = UUID.randomUUID().toString(),
-                    tabId = linkedInTab.id,
-                    tabTitle = linkedInTab.title,
-                    tabUrl = linkedInTab.url,
-                    taskPrompt = "فحص منشورات قادة الأعمال وتحليل معدل المشاركة",
-                    status = "COMPLETED",
-                    outputResult = "✅ تم رصد 6 منشورات مهنية، متوسط الإعجابات 340، وتحديد أبرز اتجاهات التحول الرقمي.",
-                    timestamp = System.currentTimeMillis() - 3600000L,
-                    durationMs = 3120L,
-                    tokensUsed = 840
-                )
-            )
-        }
-    }
-
-    /**
-     * زر تشغيل وإيقاف النظام الرئيسي
-     */
     fun toggleSystemRunning() {
         val newState = !_isSystemRunning.value
         _isSystemRunning.value = newState
 
         if (newState) {
-            _systemStatusMessage.value = "🚀 النظام قيد التشغيل: جاري فحص وتحليل كل نوافذ المتصفح المفتوحة..."
+            _systemStatusMessage.value = "🚀 النظام قيد التشغيل: جاري التحليل المتوازي لجميع النوافذ..."
             startAutomatedPageAnalysis()
         } else {
             autoAnalysisJob?.cancel()
@@ -323,80 +279,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /**
-     * بمجرد تشغيل النظام: يحلل كل الصفحات ويفتح لكل صفحة مساحة ويطلب كتابة برومبت
-     */
     fun startAutomatedPageAnalysis() {
         autoAnalysisJob?.cancel()
         autoAnalysisJob = viewModelScope.launch {
-            val currentTabs = browserManager.tabs.value
-
-            _systemStatusMessage.value = "🔍 تم العثور على ${currentTabs.size} نافذة مفتوحة. جاري فتح مساحة عمل لكل صفحة..."
-
-            for (tab in currentTabs) {
-                if (!_isSystemRunning.value) break
-
-                // Set status to ANALYZING
-                browserManager.updateTabState(tab.id) {
-                    it.copy(
-                        analysisStatus = TabAnalysisStatus.ANALYZING,
-                        lastActionLog = "جاري قراءة بنية الصفحة واستخراج العناصر والروابط..."
-                    )
-                }
-
-                // Natural delay to simulate human perception and DOM scanning
-                HumanBehaviorEngine.naturalPause(600, 1200)
-
-                val summary = generateTabSummary(tab.title, tab.url)
-                val detectedCount = when {
-                    tab.url.contains("x.com") -> 28
-                    tab.url.contains("linkedin.com") -> 35
-                    tab.url.contains("instagram.com") -> 19
-                    tab.url.contains("reddit.com") -> 42
-                    else -> 15
-                }
-
-                // Update tab state to READY_FOR_PROMPT (يطلب كتابة برومبت)
-                browserManager.updateTabState(tab.id) {
-                    it.copy(
-                        pageSummary = summary,
-                        detectedElementsCount = detectedCount,
-                        analysisStatus = TabAnalysisStatus.READY_FOR_PROMPT,
-                        lastActionLog = "اكتمل تحليل الصفحة بنجاح! المساحة جاهزة لاستقبال أمرك (البرومبت)."
-                    )
-                }
-
-                // Persist tab state in Room Database
-                repository.insertTab(
-                    BrowserTabEntity(
-                        id = tab.id,
-                        title = tab.title,
-                        url = tab.url,
-                        analysisSummary = summary,
-                        status = "READY_FOR_PROMPT",
-                        detectedElementsCount = detectedCount
-                    )
-                )
-            }
-
-            if (_isSystemRunning.value) {
-                _systemStatusMessage.value = "✅ اكتمل تحليل كافة النوافذ المفتوحة. تم فتح مساحات العمل وبانتظار برومبت لكل صفحة!"
-            }
-        }
-    }
-
-    private fun generateTabSummary(title: String, url: String): String {
-        return when {
-            url.contains("x.com") || url.contains("twitter.com") ->
-                "تم رصد منصة إكس: تم اكتشاف خلاصة المنشورات التفاعلية، أزرار الإعجاب وإعادة النشر، ومؤشرات الهاشتاجات الرائجة."
-            url.contains("linkedin.com") ->
-                "تم رصد منصة لينكد إن: اكتشاف ملفات شخصية احترافية، منشورات صناعية، وروابط تواصل وشبكات الأعمال."
-            url.contains("instagram.com") ->
-                "تم رصد إنستغرام: اكتشاف شبكة من الصور والفيديوهات (Reels)، الحسابات المقترحة، والتفاعل مع التعليقات."
-            url.contains("reddit.com") ->
-                "تم رصد ريديت: اكتشاف خيوط نقاش تقنية (Threads)، تقييمات المنشورات (Upvotes)، ومشاركات تفاعلية."
-            else ->
-                "تم فحص الصفحة ($title): استخراج العناصر النصية، الروابط الفعالة، وهيكل المحتوى الرئيسي جاهز للأتمتة."
+            orchestrator.analyzeTabsConcurrently(
+                isStillRunning = { _isSystemRunning.value },
+                onStatusUpdate = { msg -> _systemStatusMessage.value = msg }
+            )
         }
     }
 
@@ -411,139 +300,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /**
-     * تنفيذ البرومبت المكتوب على نافذة/صفحة معينة
-     */
     fun executePromptOnTab(tabId: String, promptText: String) {
         val prompt = promptText.ifBlank {
             _tabPromptInputs.value[tabId]?.trim() ?: return
         }
-
         viewModelScope.launch {
-            val tab = browserManager.tabs.value.find { it.id == tabId } ?: return@launch
-            val logId = UUID.randomUUID().toString()
-            val startTime = System.currentTimeMillis()
-
-            // 1. Insert in-progress log
-            repository.insertTaskLog(
-                TabTaskLogEntity(
-                    id = logId,
-                    tabId = tab.id,
-                    tabTitle = tab.title,
-                    tabUrl = tab.url,
-                    taskPrompt = prompt,
-                    status = "IN_PROGRESS",
-                    outputResult = "جاري تنفيذ المهمة على الصفحة ومحاكاة السلوك البشري...",
-                    timestamp = startTime
-                )
-            )
-
-            browserManager.updateTabState(tabId) {
-                it.copy(
-                    isExecutingPrompt = true,
-                    analysisStatus = TabAnalysisStatus.EXECUTING,
-                    userPrompt = prompt,
-                    lastActionLog = "جاري تنفيذ الأمر: \"$prompt\" على الصفحة..."
-                )
-            }
-
-            try {
-                // Natural typing and navigation simulation
-                HumanBehaviorEngine.humanTypingDelay(prompt.length)
-                HumanBehaviorEngine.simulatedScrollStep()
-
-                // AI analysis and command execution
-                val aiResponse = geminiProvider.analyzePageAndExecute(
-                    pageTitle = tab.title,
-                    pageUrl = tab.url,
-                    userPrompt = prompt,
-                    contextInfo = tab.pageSummary
-                )
-
-                val duration = System.currentTimeMillis() - startTime
-
-                // Log Token Usage in Room DB
-                repository.insertTokenLog(
-                    TokenLogEntity(
-                        id = UUID.randomUUID().toString(),
-                        modelName = "gemini-2.5-flash",
-                        promptTokens = aiResponse.promptTokens,
-                        candidateTokens = aiResponse.candidateTokens,
-                        totalTokens = aiResponse.totalTokens,
-                        costUsd = (aiResponse.totalTokens * 0.0000003)
-                    )
-                )
-
-                // Update Tab State with Result
-                browserManager.updateTabState(tabId) {
-                    it.copy(
-                        isExecutingPrompt = false,
-                        analysisStatus = TabAnalysisStatus.COMPLETED,
-                        promptResult = aiResponse.text,
-                        lastActionLog = "اكتمل تنفيذ البرومبت بنجاح! تم حفظ النتائج."
-                    )
-                }
-
-                // Update Room Database for Tab
-                repository.insertTab(
-                    BrowserTabEntity(
-                        id = tab.id,
-                        title = tab.title,
-                        url = tab.url,
-                        analysisSummary = tab.pageSummary,
-                        userPrompt = prompt,
-                        executionResult = aiResponse.text,
-                        status = "COMPLETED",
-                        detectedElementsCount = tab.detectedElementsCount
-                    )
-                )
-
-                // Update Task Execution Log to COMPLETED
-                repository.updateTaskLog(
-                    TabTaskLogEntity(
-                        id = logId,
-                        tabId = tab.id,
-                        tabTitle = tab.title,
-                        tabUrl = tab.url,
-                        taskPrompt = prompt,
-                        status = "COMPLETED",
-                        outputResult = aiResponse.text,
-                        timestamp = startTime,
-                        durationMs = duration,
-                        tokensUsed = aiResponse.totalTokens
-                    )
-                )
-
-                // Scrape and persist social post metadata if relevant
-                socialMediaScraper.scrapeUrl(tab.url)
-            } catch (e: Exception) {
-                val duration = System.currentTimeMillis() - startTime
-                val errorMsg = "حدث خطأ أثناء التنفيذ: ${e.localizedMessage ?: "خطأ غير متوقع"}"
-
-                browserManager.updateTabState(tabId) {
-                    it.copy(
-                        isExecutingPrompt = false,
-                        analysisStatus = TabAnalysisStatus.ERROR,
-                        promptResult = errorMsg,
-                        lastActionLog = errorMsg
-                    )
-                }
-
-                repository.updateTaskLog(
-                    TabTaskLogEntity(
-                        id = logId,
-                        tabId = tab.id,
-                        tabTitle = tab.title,
-                        tabUrl = tab.url,
-                        taskPrompt = prompt,
-                        status = "FAILED",
-                        outputResult = errorMsg,
-                        timestamp = startTime,
-                        durationMs = duration,
-                        tokensUsed = 0
-                    )
-                )
-            }
+            orchestrator.executePromptOnTab(tabId, prompt)
         }
     }
 
@@ -559,29 +321,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /**
-     * تنفيذ أمر شامل ومرن على كل النوافذ والصفحات المفتوحة دفعة واحدة
-     */
     fun executeUniversalPromptOnAllTabs(promptText: String) {
         val prompt = promptText.trim()
         if (prompt.isBlank()) return
 
-        val currentTabs = browserManager.tabs.value
-        currentTabs.forEach { tab ->
+        browserManager.tabs.value.forEach { tab ->
             updatePromptInput(tab.id, prompt)
-            executePromptOnTab(tab.id, prompt)
+        }
+        viewModelScope.launch {
+            orchestrator.executeUniversalPromptConcurrently(prompt)
         }
     }
 
-    /**
-     * استخراج فوري للبيانات والمنشورات من كل الصفحات المفتوحة
-     */
     fun triggerInstantScrapeAll() {
         viewModelScope.launch {
-            val currentTabs = browserManager.tabs.value
-            currentTabs.forEach { tab ->
-                socialMediaScraper.scrapeUrl(tab.url)
-            }
+            orchestrator.scrapeAllOpenTabs()
         }
     }
 
@@ -591,18 +345,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun addNewTab(title: String = "صفحة جديدة", url: String = "https://x.com") {
         val newId = browserManager.addNewTab(title, url)
-        if (_isSystemRunning.value) {
-            // If system is running, automatically analyze the new window!
+        if (_isSystemRunning.value && _autoAnalyzeNewTabs.value) {
             viewModelScope.launch {
-                delay(800)
-                browserManager.updateTabState(newId) {
-                    it.copy(
-                        pageSummary = generateTabSummary(title, url),
-                        detectedElementsCount = 18,
-                        analysisStatus = TabAnalysisStatus.READY_FOR_PROMPT,
-                        lastActionLog = "تم فتح وتحليل النافذة الجديدة بنجاح! اكتب برومبت للبدء."
-                    )
-                }
+                delay(400)
+                val tab = browserManager.tabs.value.find { it.id == newId } ?: return@launch
+                orchestrator.analyzeSingleTab(tab)
             }
         }
     }
@@ -657,5 +404,148 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun unpairPartner() {
         bridgeManager.unpairPartner()
+    }
+
+    // --- OpenGraph Metadata & WorkManager Cache Actions ---
+    fun scrapeUrlWithOpenGraph(url: String, forceRefresh: Boolean = false) {
+        val trimmed = url.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch {
+            if (!forceRefresh) {
+                // Instant local Room cache lookup without network overhead
+                val cached = repository.getCachedMetadataByUrl(trimmed)
+                    ?: repository.getCachedMetadataByUrl(if (trimmed.startsWith("http")) trimmed else "https://$trimmed")
+                if (cached != null) {
+                    _openGraphScrapeState.value = OpenGraphScrapeState.Success(
+                        metadata = cached.toOpenGraphMetadata(),
+                        fromCache = true
+                    )
+                    return@launch
+                }
+            }
+
+            _openGraphScrapeState.value = OpenGraphScrapeState.Loading(trimmed)
+            val result = openGraphScraper.scrapeOrGetCached(trimmed, forceRefresh = forceRefresh)
+            result.onSuccess { metadata ->
+                _openGraphScrapeState.value = OpenGraphScrapeState.Success(
+                    metadata = metadata,
+                    fromCache = metadata.isFromCache
+                )
+            }.onFailure { err ->
+                _openGraphScrapeState.value = OpenGraphScrapeState.Error(
+                    url = trimmed,
+                    message = err.localizedMessage ?: err.message ?: "فشل استخراج البيانات الوصفية"
+                )
+            }
+        }
+    }
+
+    /**
+     * Schedules a non-blocking WorkManager background task to scrape one or more
+     * user-provided URLs (comma, whitespace, or newline separated) and cache them in Room.
+     */
+    fun enqueueBackgroundMetadataScrape(rawUrlsInput: String, forceRefresh: Boolean = true): UUID? {
+        val urls = rawUrlsInput
+            .split(",", "\n", " ", "\t")
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+        if (urls.isEmpty()) return null
+        return MetadataScrapeWorker.enqueueScrape(
+            context = getApplication(),
+            urls = urls,
+            forceRefresh = forceRefresh
+        )
+    }
+
+    fun displayCachedMetadata(cached: CachedMetadataEntity) {
+        _openGraphScrapeState.value = OpenGraphScrapeState.Success(
+            metadata = cached.toOpenGraphMetadata(),
+            fromCache = true
+        )
+    }
+
+    fun deleteCachedMetadata(id: String) {
+        viewModelScope.launch {
+            repository.deleteCachedMetadataById(id)
+        }
+    }
+
+    fun clearAllCachedMetadata() {
+        viewModelScope.launch {
+            repository.clearAllCachedMetadata()
+        }
+    }
+
+    fun resetOpenGraphScrapeState() {
+        _openGraphScrapeState.value = OpenGraphScrapeState.Idle
+    }
+
+    // --- Backend Health & Diagnostics ---
+    fun runBackendDiagnostics() {
+        viewModelScope.launch {
+            orchestrator.runDiagnostics()
+        }
+    }
+
+    // --- Section Side Drawer Filter & Action Helpers ---
+    fun setBrowserViewMode(mode: BrowserViewMode) {
+        browserViewMode.value = mode
+    }
+
+    fun setRecentPagesPinnedOnly(pinnedOnly: Boolean) {
+        recentPagesPinnedOnly.value = pinnedOnly
+    }
+
+    fun setRecentPagesSortByVisits(byVisits: Boolean) {
+        recentPagesSortByVisits.value = byVisits
+    }
+
+    fun setLogsStatusFilter(status: String) {
+        logsStatusFilter.value = status
+    }
+
+    fun setLogsTabFilter(tabId: String?) {
+        logsTabFilter.value = tabId
+    }
+
+    fun setDatabasePlatformFilter(platform: String) {
+        databasePlatformFilter.value = platform
+    }
+
+    fun setDatabaseSearchQuery(query: String) {
+        databaseSearchQuery.value = query
+    }
+
+    fun clearAllScrapedPosts() {
+        viewModelScope.launch {
+            repository.deleteAllScrapedPosts()
+        }
+    }
+
+    // --- Settings & Appearance Actions (Light Mode Primary) ---
+    fun setDarkMode(enabled: Boolean) {
+        _isDarkMode.value = enabled
+        uiPrefs.edit().putBoolean("is_dark_mode", enabled).apply()
+    }
+
+    fun toggleDarkMode() {
+        setDarkMode(!_isDarkMode.value)
+    }
+
+    fun setAutoAnalyzeNewTabs(enabled: Boolean) {
+        _autoAnalyzeNewTabs.value = enabled
+        uiPrefs.edit().putBoolean("auto_analyze_new_tabs", enabled).apply()
+    }
+
+    fun resetAllSectionFilters() {
+        recentPagesFilterPlatform.value = null
+        recentPagesSearchQuery.value = ""
+        recentPagesPinnedOnly.value = false
+        recentPagesSortByVisits.value = false
+        logsStatusFilter.value = "ALL"
+        logsTabFilter.value = null
+        databasePlatformFilter.value = "ALL"
+        databaseSearchQuery.value = ""
     }
 }

@@ -4,7 +4,6 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -15,7 +14,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,7 +21,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -35,7 +32,8 @@ import com.example.bridge.BridgeExchangeEvent
 import com.example.bridge.BridgeStatus
 import com.example.bridge.ExchangeDirection
 import com.example.ui.MainViewModel
-import com.example.ui.theme.*
+import com.example.ui.theme.AppTheme
+import com.example.ui.theme.JetBrainsMonoFontFamily
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -46,19 +44,16 @@ fun AppBridgeDialog(
     viewModel: MainViewModel,
     onDismissRequest: () -> Unit
 ) {
+    val c = AppTheme.colors
     val context = LocalContext.current
     val connectionStatus by viewModel.bridgeStatus.collectAsState()
     val statusDetail by viewModel.bridgeStatusDetail.collectAsState()
-    val targetAuthority by viewModel.bridgeTargetAuthority.collectAsState()
     val exchangeEvents by viewModel.bridgeEvents.collectAsState()
-    val lastSync by viewModel.bridgeLastSync.collectAsState()
     val isObserverActive by viewModel.isBridgeObserverActive.collectAsState()
     val pairedPartnerToken by viewModel.pairedPartnerToken.collectAsState()
 
     var partnerIdInput by remember { mutableStateOf(pairedPartnerToken ?: "") }
-    var authorityInput by remember(targetAuthority) { mutableStateOf(targetAuthority) }
     var showPromptCopyDialog by remember { mutableStateOf(false) }
-    var showAdvancedSettings by remember { mutableStateOf(false) }
     var selectedDataType by remember { mutableStateOf(AppBridgeContract.TYPE_POSTS) }
 
     Dialog(
@@ -69,33 +64,31 @@ fun AppBridgeDialog(
             modifier = Modifier
                 .fillMaxWidth(0.95f)
                 .fillMaxHeight(0.94f),
-            shape = RoundedCornerShape(20.dp),
-            color = DarkBackground,
-            border = BorderStroke(1.dp, CardBorder)
+            shape = RoundedCornerShape(22.dp),
+            color = c.background,
+            border = BorderStroke(1.dp, c.border)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(18.dp)
             ) {
-                // Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                         Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = AccentIndigo.copy(alpha = 0.2f),
-                            border = BorderStroke(1.dp, CardBorderSubtle),
-                            modifier = Modifier.size(38.dp)
+                            shape = RoundedCornerShape(12.dp),
+                            color = c.accentSoft,
+                            modifier = Modifier.size(40.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
                                     imageVector = Icons.Default.SyncAlt,
                                     contentDescription = null,
-                                    tint = NeonCyan,
+                                    tint = c.accent,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -106,31 +99,28 @@ fun AppBridgeDialog(
                                 text = "جسر الربط السريع بالمعرّف (App ID)",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = TextPrimary
+                                color = c.textPrimary
                             )
                             Text(
-                                text = "ربط وتزامن تلقائي أوفلاين بين تطبيقين على نفس الهاتف",
+                                text = "ربط وتزامن تلقائي أوفلاين على نفس الهاتف",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = TextMuted
+                                color = c.textMuted
                             )
                         }
                     }
 
-                    IconButton(
-                        onClick = onDismissRequest,
-                        colors = IconButtonDefaults.iconButtonColors(contentColor = TextMuted)
-                    ) {
-                        Icon(imageVector = Icons.Default.Close, contentDescription = "إغلاق")
+                    IconButton(onClick = onDismissRequest) {
+                        Icon(imageVector = Icons.Default.Close, contentDescription = "إغلاق", tint = c.textMuted)
                     }
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Card 1: My App Pairing ID (الخطوة 1: معرّف هذا التطبيق)
+                // Card 1: My App Pairing ID
                 Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = CardSurface,
-                    border = BorderStroke(1.dp, CardBorder)
+                    shape = RoundedCornerShape(16.dp),
+                    color = c.card,
+                    border = BorderStroke(1.dp, c.borderSubtle)
                 ) {
                     Column(
                         modifier = Modifier
@@ -146,28 +136,28 @@ fun AppBridgeDialog(
                                 text = "معرّف هذا التطبيق (My App ID):",
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.SemiBold,
-                                color = TextSecondary
+                                color = c.textSecondary
                             )
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
-                                color = NeonCyan.copy(alpha = 0.15f)
+                                color = c.accentSoft
                             ) {
                                 Text(
                                     text = "جاهز للمشاركة",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = NeonCyan,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    fontWeight = FontWeight.Bold,
+                                    color = c.accent,
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                                 )
                             }
                         }
 
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        // Box showing the App ID with 1-click copy
                         Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = DarkBackground,
-                            border = BorderStroke(1.dp, CardBorderSubtle),
+                            shape = RoundedCornerShape(10.dp),
+                            color = c.cardElevated,
+                            border = BorderStroke(1.dp, c.borderSubtle),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
@@ -177,19 +167,19 @@ fun AppBridgeDialog(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Column {
+                                Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = viewModel.ourShortId,
                                         style = MaterialTheme.typography.titleMedium.copy(
-                                            fontFamily = FontFamily.Monospace,
+                                            fontFamily = JetBrainsMonoFontFamily,
                                             fontWeight = FontWeight.Bold
                                         ),
-                                        color = TextPrimary
+                                        color = c.textPrimary
                                     )
                                     Text(
                                         text = "رمز الربط: ${viewModel.ourPairingToken.take(24)}...",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = TextMuted,
+                                        color = c.textMuted,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
@@ -202,10 +192,10 @@ fun AppBridgeDialog(
                                         clipboard.setPrimaryClip(clip)
                                         Toast.makeText(context, "تم نسخ معرّف الربط! الصقه في التطبيق الآخر", Toast.LENGTH_SHORT).show()
                                     },
-                                    colors = ButtonDefaults.buttonColors(containerColor = AccentIndigo),
-                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = c.accent, contentColor = Color.White),
+                                    shape = RoundedCornerShape(10.dp),
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                                    modifier = Modifier.height(34.dp)
+                                    modifier = Modifier.height(36.dp)
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.ContentCopy,
@@ -222,11 +212,11 @@ fun AppBridgeDialog(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Card 2: Partner App ID Input (الخطوة 2: إدخال معرّف التطبيق الآخر للربط)
+                // Card 2: Partner App ID Input
                 Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = CardSurface,
-                    border = BorderStroke(1.dp, if (pairedPartnerToken != null) EmeraldGreen.copy(alpha = 0.5f) else CardBorder)
+                    shape = RoundedCornerShape(16.dp),
+                    color = c.card,
+                    border = BorderStroke(1.dp, if (pairedPartnerToken != null) c.success.copy(alpha = 0.5f) else c.borderSubtle)
                 ) {
                     Column(
                         modifier = Modifier
@@ -242,18 +232,19 @@ fun AppBridgeDialog(
                                 text = "معرّف التطبيق الآخر (Partner App ID):",
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.SemiBold,
-                                color = TextSecondary
+                                color = c.textSecondary
                             )
                             if (pairedPartnerToken != null) {
                                 Surface(
                                     shape = RoundedCornerShape(6.dp),
-                                    color = EmeraldGreen.copy(alpha = 0.15f)
+                                    color = c.successSubtle
                                 ) {
                                     Text(
-                                        text = "مرتبط بنجاح 🔗",
+                                        text = "مرتبط بنجاح",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = EmeraldGreen,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        fontWeight = FontWeight.Bold,
+                                        color = c.success,
+                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                                     )
                                 }
                             }
@@ -272,25 +263,24 @@ fun AppBridgeDialog(
                                     Text(
                                         "الصق معرّف التطبيق الآخر هنا...",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = TextMuted
+                                        color = c.textMuted
                                     )
                                 },
                                 singleLine = true,
-                                textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                                textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = JetBrainsMonoFontFamily),
                                 modifier = Modifier.weight(1f),
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = NeonCyan,
-                                    unfocusedBorderColor = CardBorder,
-                                    focusedTextColor = TextPrimary,
-                                    unfocusedTextColor = TextPrimary,
-                                    focusedContainerColor = DarkBackground,
-                                    unfocusedContainerColor = DarkBackground
+                                    focusedBorderColor = c.accent,
+                                    unfocusedBorderColor = c.border,
+                                    focusedTextColor = c.textPrimary,
+                                    unfocusedTextColor = c.textPrimary,
+                                    focusedContainerColor = c.cardElevated,
+                                    unfocusedContainerColor = c.cardElevated
                                 ),
-                                shape = RoundedCornerShape(8.dp)
+                                shape = RoundedCornerShape(10.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
 
-                            // Paste Button
                             IconButton(
                                 onClick = {
                                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -303,15 +293,15 @@ fun AppBridgeDialog(
                                     }
                                 },
                                 modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(CardSurfaceElevated)
-                                    .border(1.dp, CardBorder, RoundedCornerShape(8.dp))
+                                    .size(44.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(c.cardElevated)
+                                    .border(1.dp, c.border, RoundedCornerShape(10.dp))
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.ContentPaste,
                                     contentDescription = "لصق",
-                                    tint = NeonCyan,
+                                    tint = c.accent,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -319,7 +309,6 @@ fun AppBridgeDialog(
 
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        // Pair / Unpair Buttons
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -333,8 +322,8 @@ fun AppBridgeDialog(
                                     }
                                 },
                                 modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(8.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = NeonCyan, contentColor = DarkBackground)
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = c.accent, contentColor = Color.White)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Link,
@@ -352,9 +341,9 @@ fun AppBridgeDialog(
                                         partnerIdInput = ""
                                         Toast.makeText(context, "تم فك الربط", Toast.LENGTH_SHORT).show()
                                     },
-                                    shape = RoundedCornerShape(8.dp),
-                                    border = BorderStroke(1.dp, AlertRed.copy(alpha = 0.5f)),
-                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = AlertRed)
+                                    shape = RoundedCornerShape(10.dp),
+                                    border = BorderStroke(1.dp, c.error.copy(alpha = 0.5f)),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = c.error)
                                 ) {
                                     Text("فك الربط", style = MaterialTheme.typography.labelSmall)
                                 }
@@ -365,11 +354,11 @@ fun AppBridgeDialog(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Connection Status & Background Sync Controls
+                // Connection Status & Sync Controls
                 Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = CardSurface,
-                    border = BorderStroke(1.dp, CardBorder)
+                    shape = RoundedCornerShape(16.dp),
+                    color = c.card,
+                    border = BorderStroke(1.dp, c.borderSubtle)
                 ) {
                     Column(
                         modifier = Modifier
@@ -383,10 +372,10 @@ fun AppBridgeDialog(
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 val statusColor = when (connectionStatus) {
-                                    BridgeStatus.CONNECTED -> EmeraldGreen
-                                    BridgeStatus.CONNECTING -> AccentAmber
-                                    BridgeStatus.DISCONNECTED -> TextMuted
-                                    BridgeStatus.ERROR, BridgeStatus.NOT_INSTALLED -> AlertRed
+                                    BridgeStatus.CONNECTED -> c.success
+                                    BridgeStatus.CONNECTING -> c.warning
+                                    BridgeStatus.DISCONNECTED -> c.textMuted
+                                    BridgeStatus.ERROR, BridgeStatus.NOT_INSTALLED -> c.error
                                 }
                                 Box(
                                     modifier = Modifier
@@ -403,26 +392,23 @@ fun AppBridgeDialog(
                                 )
                             }
 
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Button(
-                                    onClick = { viewModel.testBridgeConnection() },
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = CardSurfaceElevated,
-                                        contentColor = NeonCyan
-                                    ),
-                                    border = BorderStroke(1.dp, CardBorder),
-                                    shape = RoundedCornerShape(8.dp),
-                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                                    modifier = Modifier.height(30.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Bolt,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(13.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("فحص", style = MaterialTheme.typography.labelSmall)
-                                }
+                            Button(
+                                onClick = { viewModel.testBridgeConnection() },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = c.accentSoft,
+                                    contentColor = c.accent
+                                ),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                modifier = Modifier.height(32.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Bolt,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("فحص", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                             }
                         }
 
@@ -430,14 +416,13 @@ fun AppBridgeDialog(
                         Text(
                             text = statusDetail,
                             style = MaterialTheme.typography.bodySmall,
-                            color = TextSecondary
+                            color = c.textSecondary
                         )
 
                         Spacer(modifier = Modifier.height(8.dp))
-                        HorizontalDivider(color = CardBorderSubtle, thickness = 1.dp)
+                        HorizontalDivider(color = c.borderSubtle, thickness = 1.dp)
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        // Background Service & WorkManager auto-observation toggle
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -448,36 +433,35 @@ fun AppBridgeDialog(
                                     Icon(
                                         imageVector = Icons.Default.Sensors,
                                         contentDescription = null,
-                                        tint = if (isObserverActive) EmeraldGreen else TextMuted,
-                                        modifier = Modifier.size(15.dp)
+                                        tint = if (isObserverActive) c.success else c.textMuted,
+                                        modifier = Modifier.size(16.dp)
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
-                                        text = "المراقبة اللحظية في الخلفية (Background Observer)",
+                                        text = "المراقبة اللحظية في الخلفية",
                                         style = MaterialTheme.typography.labelMedium,
                                         fontWeight = FontWeight.Bold,
-                                        color = TextPrimary
+                                        color = c.textPrimary
                                     )
                                 }
                                 Text(
-                                    text = if (isObserverActive) "نشطة: ترصد التحديثات وتزامن Room وتوجه المتصفح تلقائياً" else "المراقبة في الخلفية متوقفة",
+                                    text = if (isObserverActive) "نشطة: ترصد التحديثات وتزامن Room تلقائياً" else "المراقبة في الخلفية متوقفة",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = if (isObserverActive) EmeraldGreen else TextMuted
+                                    color = if (isObserverActive) c.success else c.textMuted
                                 )
                             }
                             Switch(
                                 checked = isObserverActive,
                                 onCheckedChange = { viewModel.toggleBridgeBackgroundObservation() },
                                 colors = SwitchDefaults.colors(
-                                    checkedThumbColor = NeonCyan,
-                                    checkedTrackColor = AccentIndigo
+                                    checkedThumbColor = Color.White,
+                                    checkedTrackColor = c.accent
                                 )
                             )
                         }
 
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        // Manual Data Exchange Action Buttons
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -485,17 +469,17 @@ fun AppBridgeDialog(
                             Button(
                                 onClick = { viewModel.pullDataFromCompanion(selectedDataType) },
                                 modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(8.dp),
+                                shape = RoundedCornerShape(10.dp),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = EmeraldGreen.copy(alpha = 0.15f),
-                                    contentColor = EmeraldGreen
+                                    containerColor = c.successSubtle,
+                                    contentColor = c.success
                                 ),
-                                border = BorderStroke(1.dp, EmeraldGreen.copy(alpha = 0.4f))
+                                border = BorderStroke(1.dp, c.success.copy(alpha = 0.35f))
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Download,
                                     contentDescription = null,
-                                    modifier = Modifier.size(15.dp)
+                                    modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text("سحب البيانات", fontWeight = FontWeight.Bold)
@@ -504,17 +488,17 @@ fun AppBridgeDialog(
                             Button(
                                 onClick = { viewModel.pushDataToCompanion(selectedDataType) },
                                 modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(8.dp),
+                                shape = RoundedCornerShape(10.dp),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = NeonCyan.copy(alpha = 0.15f),
-                                    contentColor = NeonCyan
+                                    containerColor = c.accentSoft,
+                                    contentColor = c.accent
                                 ),
-                                border = BorderStroke(1.dp, NeonCyan.copy(alpha = 0.4f))
+                                border = BorderStroke(1.dp, c.accent.copy(alpha = 0.35f))
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Upload,
                                     contentDescription = null,
-                                    modifier = Modifier.size(15.dp)
+                                    modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text("إرسال البيانات", fontWeight = FontWeight.Bold)
@@ -523,24 +507,24 @@ fun AppBridgeDialog(
 
                         Spacer(modifier = Modifier.height(6.dp))
 
-                        // Button to view/copy prompt for Gemini in the other app
                         OutlinedButton(
                             onClick = { showPromptCopyDialog = true },
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, CardBorderSubtle),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary)
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, c.border),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = c.textPrimary)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Code,
                                 contentDescription = null,
-                                tint = NeonCyan,
+                                tint = c.accent,
                                 modifier = Modifier.size(15.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                "نسخ برومبت التنسيق لجيمناي في التطبيق الآخر 📋",
-                                style = MaterialTheme.typography.labelSmall
+                                "نسخ برومبت التنسيق للتطبيق الآخر",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold
                             )
                         }
                     }
@@ -548,20 +532,19 @@ fun AppBridgeDialog(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Exchange History / Audit Log
                 Text(
                     text = "سجل تبادل البيانات المباشر (${exchangeEvents.size}):",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
-                    color = TextPrimary
+                    color = c.textPrimary
                 )
                 Spacer(modifier = Modifier.height(6.dp))
 
                 if (exchangeEvents.isEmpty()) {
                     Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = CardSurface,
-                        border = BorderStroke(1.dp, CardBorder),
+                        shape = RoundedCornerShape(14.dp),
+                        color = c.card,
+                        border = BorderStroke(1.dp, c.borderSubtle),
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f)
@@ -571,19 +554,19 @@ fun AppBridgeDialog(
                                 Icon(
                                     imageVector = Icons.Default.SwapHoriz,
                                     contentDescription = null,
-                                    tint = TextMuted,
+                                    tint = c.textMuted,
                                     modifier = Modifier.size(32.dp)
                                 )
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Text(
                                     text = "لا توجد عمليات تبادل حتى الآن",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = TextMuted
+                                    color = c.textMuted
                                 )
                                 Text(
                                     text = "الصق معرّف التطبيق الآخر واضغط 'إتمام الربط' للبدء.",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = TextMuted
+                                    color = c.textMuted
                                 )
                             }
                         }
@@ -616,13 +599,14 @@ fun AppBridgeDialog(
 
 @Composable
 fun ExchangeEventItem(event: BridgeExchangeEvent) {
+    val c = AppTheme.colors
     val isIncoming = event.direction == ExchangeDirection.INCOMING
     val sdf = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
 
     Surface(
-        shape = RoundedCornerShape(10.dp),
-        color = CardSurface,
-        border = BorderStroke(1.dp, if (event.isSuccess) CardBorderSubtle else AlertRed.copy(alpha = 0.5f))
+        shape = RoundedCornerShape(12.dp),
+        color = c.card,
+        border = BorderStroke(1.dp, if (event.isSuccess) c.borderSubtle else c.error.copy(alpha = 0.5f))
     ) {
         Row(
             modifier = Modifier
@@ -637,14 +621,14 @@ fun ExchangeEventItem(event: BridgeExchangeEvent) {
             ) {
                 Surface(
                     shape = CircleShape,
-                    color = if (isIncoming) EmeraldGreen.copy(alpha = 0.15f) else NeonCyan.copy(alpha = 0.15f),
-                    modifier = Modifier.size(28.dp)
+                    color = if (isIncoming) c.successSubtle else c.accentSoft,
+                    modifier = Modifier.size(30.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = if (isIncoming) Icons.Default.ArrowDownward else Icons.Default.ArrowUpward,
                             contentDescription = null,
-                            tint = if (isIncoming) EmeraldGreen else NeonCyan,
+                            tint = if (isIncoming) c.success else c.accent,
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -655,27 +639,28 @@ fun ExchangeEventItem(event: BridgeExchangeEvent) {
                         text = event.summary,
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.Medium,
-                        color = TextPrimary,
+                        color = c.textPrimary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         text = "${event.dataType} • ${event.itemCount} عنصر • ${sdf.format(Date(event.timestamp))}",
                         style = MaterialTheme.typography.labelSmall,
-                        color = TextMuted
+                        color = c.textMuted
                     )
                 }
             }
 
             Surface(
-                shape = RoundedCornerShape(4.dp),
-                color = if (event.isSuccess) EmeraldGreen.copy(alpha = 0.15f) else AlertRed.copy(alpha = 0.15f)
+                shape = RoundedCornerShape(6.dp),
+                color = if (event.isSuccess) c.successSubtle else c.errorSubtle
             ) {
                 Text(
                     text = if (event.isSuccess) "نجاح" else "فشل",
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (event.isSuccess) EmeraldGreen else AlertRed,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    fontWeight = FontWeight.Bold,
+                    color = if (event.isSuccess) c.success else c.error,
+                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                 )
             }
         }
@@ -689,6 +674,7 @@ fun GeminiPromptDialog(
     ourAuthority: String,
     onDismiss: () -> Unit
 ) {
+    val c = AppTheme.colors
     val context = LocalContext.current
     val promptText = remember {
         """
@@ -735,9 +721,9 @@ fun GeminiPromptDialog(
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = DarkSurface,
-            border = BorderStroke(1.dp, CardBorder),
+            shape = RoundedCornerShape(18.dp),
+            color = c.surface,
+            border = BorderStroke(1.dp, c.border),
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(8.dp)
@@ -749,28 +735,28 @@ fun GeminiPromptDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "برومبت التنسيق لجيمناي",
+                        text = "برومبت التنسيق للتطبيق الآخر",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = TextPrimary
+                        color = c.textPrimary
                     )
                     IconButton(onClick = onDismiss) {
-                        Icon(imageVector = Icons.Default.Close, contentDescription = "إغلاق")
+                        Icon(imageVector = Icons.Default.Close, contentDescription = "إغلاق", tint = c.textMuted)
                     }
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(
-                    text = "انسخ هذا النص والصقه لجيمناي في التطبيق الآخر ليتفق مع هذا التطبيق على نفس نظام تبادل الـ ID:",
+                    text = "انسخ هذا النص لتطبيق نفس نظام تبادل الـ ID في التطبيق الشريك:",
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextSecondary
+                    color = c.textSecondary
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
                 Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = DarkBackground,
-                    border = BorderStroke(1.dp, CardBorderSubtle),
+                    shape = RoundedCornerShape(10.dp),
+                    color = c.cardElevated,
+                    border = BorderStroke(1.dp, c.borderSubtle),
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(240.dp)
@@ -780,10 +766,10 @@ fun GeminiPromptDialog(
                             Text(
                                 text = promptText,
                                 style = MaterialTheme.typography.bodySmall.copy(
-                                    fontFamily = FontFamily.Monospace,
+                                    fontFamily = JetBrainsMonoFontFamily,
                                     fontSize = 11.sp
                                 ),
-                                color = TextPrimary
+                                color = c.textPrimary
                             )
                         }
                     }
@@ -795,11 +781,11 @@ fun GeminiPromptDialog(
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                         val clip = ClipData.newPlainText("Gemini Bridge Prompt", promptText)
                         clipboard.setPrimaryClip(clip)
-                        Toast.makeText(context, "تم نسخ البرومبت بنجاح! جاهز للصق في التطبيق الآخر", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "تم نسخ البرومبت بنجاح!", Toast.LENGTH_SHORT).show()
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = NeonCyan, contentColor = DarkBackground)
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = c.accent, contentColor = Color.White)
                 ) {
                     Icon(imageVector = Icons.Default.ContentCopy, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))

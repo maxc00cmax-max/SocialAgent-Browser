@@ -14,6 +14,9 @@ interface BrowserTabDao {
     @Query("SELECT * FROM browser_tabs ORDER BY timestamp DESC")
     fun getAllTabs(): Flow<List<BrowserTabEntity>>
 
+    @Query("SELECT * FROM browser_tabs ORDER BY timestamp ASC")
+    suspend fun getAllTabsSync(): List<BrowserTabEntity>
+
     @Query("SELECT * FROM browser_tabs WHERE id = :id")
     suspend fun getTabById(id: String): BrowserTabEntity?
 
@@ -81,6 +84,9 @@ interface PostMetadataDao {
     @Query("SELECT * FROM scraped_posts_metadata WHERE id = :id")
     suspend fun getPostById(id: String): ScrapedPostMetadataEntity?
 
+    @Query("SELECT * FROM scraped_posts_metadata WHERE originalPostUrl = :url ORDER BY scrapedTimestamp DESC LIMIT 1")
+    suspend fun findByOriginalUrl(url: String): ScrapedPostMetadataEntity?
+
     @Query("SELECT * FROM scraped_posts_metadata WHERE postContent LIKE '%' || :query || '%' OR authorHandle LIKE '%' || :query || '%'")
     fun searchPosts(query: String): Flow<List<ScrapedPostMetadataEntity>>
 
@@ -131,6 +137,9 @@ interface BrowserDataDao {
     @Query("SELECT * FROM browser_data ORDER BY timestamp DESC")
     fun getAllBrowserData(): Flow<List<BrowserDataEntity>>
 
+    @Query("SELECT * FROM browser_data WHERE url = :url LIMIT 1")
+    suspend fun getByUrl(url: String): BrowserDataEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertBrowserData(data: BrowserDataEntity)
 
@@ -148,6 +157,15 @@ interface TokenLogDao {
 
     @Query("SELECT SUM(totalTokens) FROM token_logs")
     fun getTotalTokens(): Flow<Int?>
+
+    @Query("SELECT SUM(costUsd) FROM token_logs")
+    fun getTotalCostUsd(): Flow<Double?>
+
+    @Query("SELECT COUNT(*) FROM token_logs")
+    fun getTokenLogCount(): Flow<Int>
+
+    @Query("DELETE FROM token_logs")
+    suspend fun deleteAllTokenLogs()
 }
 
 @Dao
@@ -167,6 +185,12 @@ interface OrchestrationTaskDao {
     @Query("SELECT * FROM orchestration_tasks ORDER BY createdAt DESC")
     fun getAllTasks(): Flow<List<OrchestrationTaskEntity>>
 
+    @Query("SELECT * FROM orchestration_tasks WHERE id = :id LIMIT 1")
+    suspend fun getTaskById(id: String): OrchestrationTaskEntity?
+
+    @Query("SELECT COUNT(*) FROM orchestration_tasks WHERE status IN ('PENDING', 'RUNNING')")
+    fun getActiveTasksCount(): Flow<Int>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTask(task: OrchestrationTaskEntity)
 
@@ -175,6 +199,9 @@ interface OrchestrationTaskDao {
 
     @Query("DELETE FROM orchestration_tasks WHERE id = :id")
     suspend fun deleteTask(id: String)
+
+    @Query("DELETE FROM orchestration_tasks WHERE status IN ('COMPLETED', 'FAILED')")
+    suspend fun clearCompletedTasks()
 }
 
 @Dao
@@ -242,6 +269,9 @@ interface RecentPageDao {
     @Query("SELECT * FROM recent_pages ORDER BY isPinned DESC, lastVisitedTimestamp DESC")
     fun getAllRecentPages(): Flow<List<RecentPageEntity>>
 
+    @Query("SELECT * FROM recent_pages ORDER BY isPinned DESC, lastVisitedTimestamp DESC")
+    suspend fun getAllRecentPagesSync(): List<RecentPageEntity>
+
     @Query("SELECT * FROM recent_pages WHERE platform = :platform ORDER BY isPinned DESC, lastVisitedTimestamp DESC")
     fun getRecentPagesByPlatform(platform: String): Flow<List<RecentPageEntity>>
 
@@ -280,5 +310,53 @@ interface RecentPageDao {
 
     @Query("SELECT COUNT(*) FROM recent_pages")
     fun getRecentPagesCount(): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM recent_pages WHERE isPinned = 1")
+    fun getPinnedCount(): Flow<Int>
+
+    @Query("SELECT SUM(visitCount) FROM recent_pages")
+    fun getTotalVisitsSum(): Flow<Int?>
+}
+
+@Dao
+interface CachedMetadataDao {
+    @Query("SELECT * FROM cached_scraped_metadata ORDER BY scrapedAt DESC")
+    fun getAllCachedMetadata(): Flow<List<CachedMetadataEntity>>
+
+    @Query("SELECT * FROM cached_scraped_metadata ORDER BY scrapedAt DESC")
+    suspend fun getAllCachedMetadataSync(): List<CachedMetadataEntity>
+
+    @Query(
+        """
+        SELECT * FROM cached_scraped_metadata
+        WHERE title LIKE '%' || :query || '%'
+           OR description LIKE '%' || :query || '%'
+           OR resolvedUrl LIKE '%' || :query || '%'
+           OR siteName LIKE '%' || :query || '%'
+        ORDER BY scrapedAt DESC
+        """
+    )
+    fun searchCachedMetadata(query: String): Flow<List<CachedMetadataEntity>>
+
+    @Query("SELECT * FROM cached_scraped_metadata WHERE resolvedUrl = :url OR requestedUrl = :url ORDER BY scrapedAt DESC LIMIT 1")
+    suspend fun getByUrl(url: String): CachedMetadataEntity?
+
+    @Query("SELECT * FROM cached_scraped_metadata WHERE resolvedUrl = :url OR requestedUrl = :url ORDER BY scrapedAt DESC LIMIT 1")
+    fun observeByUrl(url: String): Flow<CachedMetadataEntity?>
+
+    @Query("SELECT COUNT(*) FROM cached_scraped_metadata")
+    fun getCount(): Flow<Int>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(metadata: CachedMetadataEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(items: List<CachedMetadataEntity>)
+
+    @Query("DELETE FROM cached_scraped_metadata WHERE id = :id")
+    suspend fun deleteById(id: String)
+
+    @Query("DELETE FROM cached_scraped_metadata")
+    suspend fun clearAll()
 }
 

@@ -2,87 +2,109 @@ package com.example.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import com.example.R
 
-// Clean typography scale with comfortable line heights (1.5 - 1.7) for Arabic and Latin text
+val CairoFontFamily = FontFamily(
+    Font(R.font.cairo, FontWeight.Normal),
+    Font(R.font.cairo, FontWeight.Medium),
+    Font(R.font.cairo, FontWeight.SemiBold),
+    Font(R.font.cairo, FontWeight.Bold)
+)
+
+val JetBrainsMonoFontFamily = FontFamily(
+    Font(R.font.jetbrains_mono, FontWeight.Normal),
+    Font(R.font.jetbrains_mono, FontWeight.Medium),
+    Font(R.font.jetbrains_mono, FontWeight.Bold)
+)
+
+// Clean typography scale pairing Cairo (Arabic + Latin UI) with comfortable line heights
 val Typography = Typography(
     displaySmall = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = CairoFontFamily,
         fontWeight = FontWeight.Bold,
-        fontSize = 28.sp,
-        lineHeight = 36.sp,
+        fontSize = 26.sp,
+        lineHeight = 34.sp,
         letterSpacing = 0.sp
     ),
     headlineMedium = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = CairoFontFamily,
         fontWeight = FontWeight.Bold,
         fontSize = 22.sp,
         lineHeight = 30.sp,
         letterSpacing = 0.sp
     ),
     headlineSmall = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.SemiBold,
+        fontFamily = CairoFontFamily,
+        fontWeight = FontWeight.Bold,
         fontSize = 18.sp,
         lineHeight = 26.sp,
         letterSpacing = 0.sp
     ),
     titleLarge = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 16.sp,
+        fontFamily = CairoFontFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 17.sp,
         lineHeight = 24.sp,
         letterSpacing = 0.sp
     ),
     titleMedium = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Medium,
-        fontSize = 14.sp,
+        fontFamily = CairoFontFamily,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 15.sp,
         lineHeight = 22.sp,
-        letterSpacing = 0.1.sp
+        letterSpacing = 0.sp
+    ),
+    titleSmall = TextStyle(
+        fontFamily = CairoFontFamily,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+        letterSpacing = 0.sp
     ),
     bodyLarge = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = CairoFontFamily,
         fontWeight = FontWeight.Normal,
         fontSize = 15.sp,
         lineHeight = 23.sp,
-        letterSpacing = 0.2.sp
+        letterSpacing = 0.sp
     ),
     bodyMedium = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = CairoFontFamily,
         fontWeight = FontWeight.Normal,
         fontSize = 13.sp,
         lineHeight = 20.sp,
-        letterSpacing = 0.2.sp
+        letterSpacing = 0.sp
     ),
     bodySmall = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = CairoFontFamily,
         fontWeight = FontWeight.Normal,
         fontSize = 12.sp,
         lineHeight = 18.sp,
-        letterSpacing = 0.2.sp
+        letterSpacing = 0.sp
     ),
     labelLarge = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = CairoFontFamily,
         fontWeight = FontWeight.SemiBold,
         fontSize = 13.sp,
         lineHeight = 18.sp,
-        letterSpacing = 0.1.sp
+        letterSpacing = 0.sp
     ),
     labelMedium = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = CairoFontFamily,
         fontWeight = FontWeight.Medium,
         fontSize = 11.sp,
         lineHeight = 16.sp,
-        letterSpacing = 0.3.sp
+        letterSpacing = 0.sp
     ),
     labelSmall = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = CairoFontFamily,
         fontWeight = FontWeight.Medium,
         fontSize = 10.sp,
         lineHeight = 14.sp,
-        letterSpacing = 0.3.sp
+        letterSpacing = 0.sp
     )
 )
