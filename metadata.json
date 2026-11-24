@@ -1,0 +1,8 @@
+{
+  "name": "Social Agent",
+  "description": "Autonomous AI Browser Agent for Social Media Automation, Multi-Window Page Analysis, and Scraping",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

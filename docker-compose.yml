@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  android-builder:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: social-agent-builder
+    volumes:
+      - ./build-outputs:/project/build-outputs
+      - gradle-cache:/root/.gradle
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+    restart: "no"
+
+volumes:
+  gradle-cache:
